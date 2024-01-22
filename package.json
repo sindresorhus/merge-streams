@@ -19,7 +19,6 @@
 	"engines": {
 		"node": ">=18"
 	},
-	"sideEffects": false,
 	"scripts": {
 		"test": "xo && ava && tsc index.d.ts"
 	},
@@ -40,6 +39,7 @@
 	],
 	"devDependencies": {
 		"ava": "^6.1.0",
+		"tempfile": "^5.0.0",
 		"typescript": "^5.2.2",
 		"xo": "^0.56.0"
 	}
