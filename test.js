@@ -31,6 +31,14 @@ test('works with fs.createReadStream()', async t => {
 	await Promise.all(files.map(file => rm(file)));
 });
 
+const largeValue = '.'.repeat(1e7);
+const largeRepeat = 20;
+
+test('Handles large values', async t => {
+	const stream = mergeStreams([Readable.from(Array.from({length: largeRepeat}).fill(largeValue))]);
+	t.is(await text(stream), largeValue.repeat(largeRepeat));
+});
+
 test('propagate stream errors', async t => {
 	const inputStream = new Readable();
 	const stream = mergeStreams([inputStream]);
@@ -93,7 +101,7 @@ const testHighWaterMarkAmount = async (t, firstObjectMode, secondObjectMode, hig
 		Readable.from(['c', 'd'], {highWaterMark: 2, objectMode: secondObjectMode}),
 	]);
 	t.is(stream.readableHighWaterMark, highWaterMark);
-	t.is(stream.writableHighWaterMark, 0);
+	t.is(stream.writableHighWaterMark, highWaterMark);
 	await stream.toArray();
 };
 
@@ -107,9 +115,9 @@ const testBufferSize = async (t, objectMode) => {
 	const twoStream = new PassThrough({highWaterMark, objectMode});
 	const stream = mergeStreams([oneStream, twoStream]);
 
-	// Each PassThrough has a read + write buffer, except the merged stream which has no write buffer
-	// Therefore, there are 5 buffers of size `highWaterMark`
-	const bufferCount = 5;
+	// Each PassThrough has a read + write buffer, including the merged stream
+	// Therefore, there are 6 buffers of size `highWaterMark`
+	const bufferCount = 6;
 
 	let writeCount = 0;
 	while (oneStream.write('.') && twoStream.write('.')) {
@@ -119,7 +127,7 @@ const testBufferSize = async (t, objectMode) => {
 	}
 
 	// Ensure the maximum amount buffered on writes are those 5 buffers
-	t.is(writeCount - 1, (highWaterMark - 1) * bufferCount);
+	t.is(writeCount - 2, (highWaterMark - 1) * bufferCount);
 
 	let readCount = 0;
 	while (stream.read() !== null) {

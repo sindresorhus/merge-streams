@@ -12,8 +12,8 @@ export default function mergeStreams(streams) {
 	}
 
 	const objectMode = streams.some(({readableObjectMode}) => readableObjectMode);
-	const readableHighWaterMark = getReadableHighWaterMark(streams, objectMode);
-	const passThroughStream = new PassThroughStream({objectMode, writableHighWaterMark: 0, readableHighWaterMark});
+	const highWaterMark = getHighWaterMark(streams, objectMode);
+	const passThroughStream = new PassThroughStream({objectMode, writableHighWaterMark: highWaterMark, readableHighWaterMark: highWaterMark});
 	passThroughStream.setMaxListeners(Number.POSITIVE_INFINITY);
 
 	if (streams.length === 0) {
@@ -30,7 +30,7 @@ export default function mergeStreams(streams) {
 	return passThroughStream;
 }
 
-const getReadableHighWaterMark = (streams, objectMode) => {
+const getHighWaterMark = (streams, objectMode) => {
 	if (streams.length === 0) {
 		return 0;
 	}
@@ -44,6 +44,7 @@ const getReadableHighWaterMark = (streams, objectMode) => {
 const endWhenStreamsDone = async (passThroughStream, streams) => {
 	try {
 		await Promise.all(streams.map(stream => finished(stream, {cleanup: true, readable: true, writable: false})));
+		passThroughStream.resume();
 		passThroughStream.end();
 	} catch (error) {
 		// This is the error thrown by `finished()` on `stream.destroy()`
