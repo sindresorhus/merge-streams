@@ -44,7 +44,6 @@ const getHighWaterMark = (streams, objectMode) => {
 const endWhenStreamsDone = async (passThroughStream, streams) => {
 	try {
 		await Promise.all(streams.map(stream => finished(stream, {cleanup: true, readable: true, writable: false})));
-		passThroughStream.resume();
 		passThroughStream.end();
 	} catch (error) {
 		// This is the error thrown by `finished()` on `stream.destroy()`
