@@ -145,3 +145,18 @@ const testBufferSize = async (t, objectMode) => {
 
 test('Use the correct highWaterMark', testBufferSize, false);
 test('Use the correct highWaterMark, objectMode', testBufferSize, true);
+
+test('Buffers streams before consumption', async t => {
+	const inputStream = Readable.from('.');
+	const stream = mergeStreams([inputStream]);
+	await scheduler.yield();
+
+	t.is(inputStream.readableLength, 0);
+	t.false(inputStream.readableFlowing);
+	t.true(inputStream.destroyed);
+
+	t.is(stream.readableLength, 1);
+	t.is(stream.readableFlowing, null);
+	t.false(stream.destroyed);
+	t.is(await text(stream), '.');
+});
