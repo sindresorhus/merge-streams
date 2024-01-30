@@ -1,3 +1,4 @@
+import {setMaxListeners} from 'node:events';
 import {PassThrough as PassThroughStream} from 'node:stream';
 import {finished} from 'node:stream/promises';
 
@@ -20,7 +21,7 @@ export default function mergeStreams(streams) {
 		return passThroughStream;
 	}
 
-	passThroughStream.setMaxListeners(passThroughStream.getMaxListeners() + streams.length);
+	passThroughStream.setMaxListeners(passThroughStream.getMaxListeners() + streams.length + 1);
 
 	for (const stream of streams) {
 		stream.pipe(passThroughStream, {end: false});
@@ -44,8 +45,16 @@ const getHighWaterMark = (streams, objectMode) => {
 
 const endWhenStreamsDone = async (passThroughStream, streams) => {
 	try {
-		await Promise.all(streams.map(stream => finished(stream, {cleanup: true, readable: true, writable: false})));
-		passThroughStream.end();
+		const abortController = new AbortController();
+		setMaxListeners(streams.length + 1, abortController.signal);
+		try {
+			await Promise.race([
+				onMergedStreamEnd(passThroughStream, abortController),
+				onInputStreamsEnd(streams, passThroughStream, abortController),
+			]);
+		} finally {
+			abortController.abort();
+		}
 	} catch (error) {
 		// This is the error thrown by `finished()` on `stream.destroy()`
 		if (error?.code === 'ERR_STREAM_PREMATURE_CLOSE') {
@@ -54,4 +63,15 @@ const endWhenStreamsDone = async (passThroughStream, streams) => {
 			passThroughStream.destroy(error);
 		}
 	}
+};
+
+const onMergedStreamEnd = async (passThroughStream, {signal}) => {
+	try {
+		await finished(passThroughStream, {signal, cleanup: true});
+	} catch {}
+};
+
+const onInputStreamsEnd = async (streams, passThroughStream, {signal}) => {
+	await Promise.all(streams.map(stream => finished(stream, {signal, cleanup: true, readable: true, writable: false})));
+	passThroughStream.end();
 };
