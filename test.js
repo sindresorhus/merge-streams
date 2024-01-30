@@ -1,4 +1,4 @@
-import {once} from 'node:events';
+import {once, defaultMaxListeners} from 'node:events';
 import {createReadStream} from 'node:fs';
 import {writeFile, rm} from 'node:fs/promises';
 import {Readable, PassThrough, getDefaultHighWaterMark} from 'node:stream';
@@ -147,7 +147,7 @@ test('Use the correct highWaterMark', testBufferSize, false);
 test('Use the correct highWaterMark, objectMode', testBufferSize, true);
 
 test('Buffers streams before consumption', async t => {
-	const inputStream = Readable.from('.');
+	const inputStream = Readable.from(['.']);
 	const stream = mergeStreams([inputStream]);
 	await scheduler.yield();
 
@@ -159,4 +159,12 @@ test('Buffers streams before consumption', async t => {
 	t.is(stream.readableFlowing, null);
 	t.false(stream.destroyed);
 	t.is(await text(stream), '.');
+});
+
+test('Does not emit maxListeners warning', async t => {
+	const length = 1e3;
+	const inputStreams = Array.from({length}, () => Readable.from(['.']));
+	const stream = mergeStreams(inputStreams);
+	t.is(stream.listenerCount('finish'), stream.getMaxListeners() - defaultMaxListeners);
+	await stream.toArray();
 });
