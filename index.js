@@ -14,12 +14,13 @@ export default function mergeStreams(streams) {
 	const objectMode = streams.some(({readableObjectMode}) => readableObjectMode);
 	const highWaterMark = getHighWaterMark(streams, objectMode);
 	const passThroughStream = new PassThroughStream({objectMode, writableHighWaterMark: highWaterMark, readableHighWaterMark: highWaterMark});
-	passThroughStream.setMaxListeners(Number.POSITIVE_INFINITY);
 
 	if (streams.length === 0) {
 		passThroughStream.end();
 		return passThroughStream;
 	}
+
+	passThroughStream.setMaxListeners(passThroughStream.getMaxListeners() + streams.length);
 
 	for (const stream of streams) {
 		stream.pipe(passThroughStream, {end: false});
