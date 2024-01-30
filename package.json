@@ -1,6 +1,6 @@
 {
 	"name": "@sindresorhus/merge-streams",
-	"version": "2.0.2",
+	"version": "2.0.3",
 	"description": "Merge multiple streams into a unified stream",
 	"license": "MIT",
 	"repository": "sindresorhus/merge-streams",
