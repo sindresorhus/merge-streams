@@ -8,6 +8,8 @@ import test from 'ava';
 import tempfile from 'tempfile';
 import mergeStreams from './index.js';
 
+const getInfiniteStream = () => new Readable({read() {}});
+
 test('works with Readable.from()', async t => {
 	const stream = mergeStreams([
 		Readable.from(['a', 'b']),
@@ -40,7 +42,7 @@ test('Handles large values', async t => {
 });
 
 test('propagate stream errors', async t => {
-	const inputStream = new Readable();
+	const inputStream = getInfiniteStream();
 	const stream = mergeStreams([inputStream]);
 	const error = new Error('test');
 	inputStream.destroy(error);
@@ -54,7 +56,7 @@ test('propagate stream errors', async t => {
 });
 
 test('propagate stream aborts', async t => {
-	const inputStream = new Readable();
+	const inputStream = getInfiniteStream();
 	const stream = mergeStreams([inputStream]);
 	inputStream.destroy();
 	await once(stream, 'close');
@@ -94,6 +96,102 @@ const testObjectMode = async (t, firstObjectMode, secondObjectMode, mergeObjectM
 test('is not in objectMode if no input stream is', testObjectMode, false, false, false);
 test('is in objectMode if only some input streams are', testObjectMode, false, true, true);
 test('is in objectMode if all input streams are', testObjectMode, true, true, true);
+
+test('Can end the merge stream before the input streams', async t => {
+	const stream = mergeStreams([Readable.from('.')]);
+	stream.end();
+	t.deepEqual(await stream.toArray(), []);
+});
+
+test('Can abort the merge stream before the input streams', async t => {
+	const stream = mergeStreams([Readable.from('.')]);
+	stream.destroy();
+	await t.throwsAsync(stream.toArray(), {code: 'ERR_STREAM_PREMATURE_CLOSE'});
+});
+
+test('Can destroy the merge stream before the input streams', async t => {
+	const stream = mergeStreams([Readable.from('.')]);
+	const error = new Error('test');
+	stream.destroy(error);
+	t.is(await t.throwsAsync(stream.toArray()), error);
+});
+
+const testListenersCleanup = (t, inputStream, stream) => {
+	t.is(inputStream.listeners().length, 0);
+	t.is(stream.listeners().length, 0);
+};
+
+test('Cleans up input streams listeners on all input streams end', async t => {
+	const inputStream = Readable.from(['.']);
+	const stream = mergeStreams([inputStream, Readable.from(['.'])]);
+	t.is(await text(stream), '..');
+	testListenersCleanup(t, inputStream, stream);
+});
+
+test('Cleans up input streams listeners on any input streams abort', async t => {
+	const inputStream = Readable.from(['.']);
+	const stream = mergeStreams([inputStream, Readable.from(['.'])]);
+	inputStream.destroy();
+	await t.throwsAsync(stream.toArray(), {code: 'ERR_STREAM_PREMATURE_CLOSE'});
+	testListenersCleanup(t, inputStream, stream);
+});
+
+test('Cleans up input streams listeners on any input streams error', async t => {
+	const inputStream = Readable.from(['.']);
+	const stream = mergeStreams([inputStream, Readable.from(['.'])]);
+	const error = new Error('test');
+	inputStream.destroy(error);
+	t.is(await t.throwsAsync(stream.toArray()), error);
+	testListenersCleanup(t, inputStream, stream);
+});
+
+test('Cleans up input streams listeners on merged stream end', async t => {
+	const inputStream = getInfiniteStream();
+	const stream = mergeStreams([inputStream]);
+	stream.end();
+	await stream.toArray();
+	await scheduler.yield();
+	testListenersCleanup(t, inputStream, stream);
+});
+
+test('Cleans up input streams listeners on merged stream abort', async t => {
+	const inputStream = getInfiniteStream();
+	const stream = mergeStreams([inputStream]);
+	stream.destroy();
+	await t.throwsAsync(stream.toArray(), {code: 'ERR_STREAM_PREMATURE_CLOSE'});
+	testListenersCleanup(t, inputStream, stream);
+});
+
+test('Cleans up input streams listeners on merged stream error', async t => {
+	const inputStream = getInfiniteStream();
+	const stream = mergeStreams([inputStream]);
+	const error = new Error('test');
+	stream.destroy(error);
+	t.is(await t.throwsAsync(stream.toArray()), error);
+	testListenersCleanup(t, inputStream, stream);
+});
+
+test('The input streams might have already ended', async t => {
+	const inputStream = Readable.from(['.']);
+	await inputStream.toArray();
+	const stream = mergeStreams([inputStream]);
+	t.deepEqual(await stream.toArray(), []);
+});
+
+test('The input streams might have already aborted', async t => {
+	const inputStream = Readable.from(['.']);
+	inputStream.destroy();
+	const stream = mergeStreams([inputStream]);
+	await t.throwsAsync(stream.toArray(), {code: 'ERR_STREAM_PREMATURE_CLOSE'});
+});
+
+test('The input streams might have already errored', async t => {
+	const inputStream = Readable.from(['.']);
+	const error = new Error('test');
+	inputStream.destroy(error);
+	const stream = mergeStreams([inputStream]);
+	t.is(await t.throwsAsync(stream.toArray()), error);
+});
 
 const testHighWaterMarkAmount = async (t, firstObjectMode, secondObjectMode, highWaterMark) => {
 	const stream = mergeStreams([
@@ -161,10 +259,24 @@ test('Buffers streams before consumption', async t => {
 	t.is(await text(stream), '.');
 });
 
-test('Does not emit maxListeners warning', async t => {
+const assertMaxListeners = (t, stream, remainingListeners) => {
+	const listenersMaxCount = Math.max(...stream.eventNames().map(eventName => stream.listenerCount(eventName)));
+	t.is(stream.getMaxListeners() - listenersMaxCount, remainingListeners);
+};
+
+test('Does not increment maxListeners of merged streams', async t => {
 	const length = 1e3;
 	const inputStreams = Array.from({length}, () => Readable.from(['.']));
 	const stream = mergeStreams(inputStreams);
-	t.is(stream.listenerCount('finish'), stream.getMaxListeners() - defaultMaxListeners);
+	assertMaxListeners(t, stream, defaultMaxListeners);
 	await stream.toArray();
+});
+
+test('Only increments maxListeners of input streams by 2', async t => {
+	const inputStream = Readable.from(['.']);
+	inputStream.setMaxListeners(2);
+	const stream = mergeStreams([inputStream]);
+	assertMaxListeners(t, inputStream, 0);
+	await stream.toArray();
+	t.pass();
 });
