@@ -116,6 +116,28 @@ test('Can destroy the merge stream before the input streams', async t => {
 	t.is(await t.throwsAsync(stream.toArray()), error);
 });
 
+test('Does not hang when .unpipe() is called', async t => {
+	const inputStream = Readable.from(['.']);
+	const stream = mergeStreams([inputStream]);
+	inputStream.unpipe(stream);
+	t.is(await text(stream), '');
+});
+
+test('Does not abort when .unpipe() is called on a different stream', async t => {
+	const stream = mergeStreams([Readable.from(['.'])]);
+	const inputStream = Readable.from([' ']);
+	inputStream.pipe(stream);
+	inputStream.unpipe(stream);
+	t.is(await text(stream), '.');
+});
+
+test('Keeps piping other streams after one is unpiped', async t => {
+	const inputStream = Readable.from([' ']);
+	const stream = mergeStreams([inputStream, Readable.from('.')]);
+	inputStream.unpipe(stream);
+	t.is(await text(stream), '.');
+});
+
 const testListenersCleanup = (t, inputStream, stream) => {
 	t.is(inputStream.listeners().length, 0);
 	t.is(stream.listeners().length, 0);

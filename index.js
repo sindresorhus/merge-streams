@@ -1,4 +1,4 @@
-import {setMaxListeners} from 'node:events';
+import {setMaxListeners, on, once} from 'node:events';
 import {PassThrough as PassThroughStream} from 'node:stream';
 import {finished} from 'node:stream/promises';
 
@@ -21,7 +21,7 @@ export default function mergeStreams(streams) {
 		return passThroughStream;
 	}
 
-	passThroughStream.setMaxListeners(passThroughStream.getMaxListeners() + streams.length + 1);
+	passThroughStream.setMaxListeners(passThroughStream.getMaxListeners() + getPassThroughListenersCount(streams));
 
 	for (const stream of streams) {
 		stream.pipe(passThroughStream, {end: false});
@@ -43,13 +43,20 @@ const getHighWaterMark = (streams, objectMode) => {
 	return Math.max(...highWaterMarks);
 };
 
+// Number of times `passThroughStream.on()` is called:
+//  - once per stream due to `stream.pipe(passThroughStream)`
+//  - once due to `finished(passThroughStream)`
+//  - once due to `on(passThroughStream)`
+const getPassThroughListenersCount = streams => streams.length + 2;
+
 const endWhenStreamsDone = async (passThroughStream, streams) => {
 	try {
 		const abortController = new AbortController();
-		setMaxListeners(streams.length + 1, abortController.signal);
+		setMaxListeners(getSignalListenersCount(streams), abortController.signal);
 		try {
 			await Promise.race([
 				onMergedStreamEnd(passThroughStream, abortController),
+				onInputStreamsUnpipe(streams, passThroughStream, abortController),
 				onInputStreamsEnd(streams, passThroughStream, abortController),
 			]);
 		} finally {
@@ -65,13 +72,36 @@ const endWhenStreamsDone = async (passThroughStream, streams) => {
 	}
 };
 
+// Number of times `abortController.signal.on('abort')` is called. `signal` is used by:
+//  - each stream with both `finished()` and `once()`
+//  - `passThroughStream()` with both `finished()` and `on()`
+const getSignalListenersCount = streams => (streams.length * 2) + 2;
+
 const onMergedStreamEnd = async (passThroughStream, {signal}) => {
 	try {
 		await finished(passThroughStream, {signal, cleanup: true});
 	} catch {}
 };
 
+const onInputStreamsUnpipe = async (streams, passThroughStream, {signal}) => {
+	const streamsSet = new Set(streams);
+	for await (const [stream] of on(passThroughStream, 'unpipe', {signal})) {
+		if (streamsSet.has(stream)) {
+			stream.emit(unpipeEvent);
+		}
+	}
+};
+
 const onInputStreamsEnd = async (streams, passThroughStream, {signal}) => {
-	await Promise.all(streams.map(stream => finished(stream, {signal, cleanup: true, readable: true, writable: false})));
+	await Promise.all(streams.map(stream => onInputStreamEnd(stream, signal)));
 	passThroughStream.end();
 };
+
+const onInputStreamEnd = async (stream, signal) => {
+	await Promise.race([
+		finished(stream, {signal, cleanup: true, readable: true, writable: false}),
+		once(stream, unpipeEvent, {signal}),
+	]);
+};
+
+const unpipeEvent = Symbol('unpipe');
