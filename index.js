@@ -21,7 +21,7 @@ export default function mergeStreams(streams) {
 		return passThroughStream;
 	}
 
-	passThroughStream.setMaxListeners(passThroughStream.getMaxListeners() + streams.length + 2);
+	passThroughStream.setMaxListeners(passThroughStream.getMaxListeners() + getPassThroughListenersCount(streams));
 
 	for (const stream of streams) {
 		stream.pipe(passThroughStream, {end: false});
@@ -43,10 +43,16 @@ const getHighWaterMark = (streams, objectMode) => {
 	return Math.max(...highWaterMarks);
 };
 
+// Number of times `passThroughStream.on()` is called:
+//  - once per stream due to `stream.pipe(passThroughStream)`
+//  - once due to `finished(passThroughStream)`
+//  - once due to `on(passThroughStream)`
+const getPassThroughListenersCount = streams => streams.length + 2;
+
 const endWhenStreamsDone = async (passThroughStream, streams) => {
 	try {
 		const abortController = new AbortController();
-		setMaxListeners((streams.length * 2) + 2, abortController.signal);
+		setMaxListeners(getSignalListenersCount(streams), abortController.signal);
 		try {
 			await Promise.race([
 				onMergedStreamEnd(passThroughStream, abortController),
@@ -65,6 +71,11 @@ const endWhenStreamsDone = async (passThroughStream, streams) => {
 		}
 	}
 };
+
+// Number of times `abortController.signal.on('abort')` is called. `signal` is used by:
+//  - each stream with both `finished()` and `once()`
+//  - `passThroughStream()` with both `finished()` and `on()`
+const getSignalListenersCount = streams => (streams.length * 2) + 2;
 
 const onMergedStreamEnd = async (passThroughStream, {signal}) => {
 	try {
