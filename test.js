@@ -477,6 +477,17 @@ test('can remove then add again a stream', async t => {
 	t.is(await streamPromise, '...');
 });
 
+test('cannot remove same stream twice', async t => {
+	const inputStream = Readable.from('.');
+	const stream = mergeStreams([inputStream]);
+	stream.remove(inputStream);
+	await scheduler.yield();
+	t.throws(() => {
+		stream.remove(inputStream);
+	}, {message: /cannot be removed/});
+	await stream.toArray();
+});
+
 const testInvalidRemove = async (t, removeArgument) => {
 	const stream = mergeStreams([Readable.from('.')]);
 	t.throws(() => {
