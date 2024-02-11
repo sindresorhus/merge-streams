@@ -89,7 +89,7 @@ test('cannot add stream after initially setting to no input', async t => {
 
 test('validates argument is an array', t => {
 	t.throws(() => {
-		mergeStreams(Readable.from([]));
+		mergeStreams(Readable.from('.'));
 	}, {message: /Expected an array/});
 });
 
@@ -107,8 +107,8 @@ test('validates add() argument is stream', t => {
 
 const testObjectMode = async (t, firstObjectMode, secondObjectMode, mergeObjectMode) => {
 	const stream = mergeStreams([
-		Readable.from(['a'], {objectMode: firstObjectMode}),
-		Readable.from(['b'], {objectMode: secondObjectMode}),
+		Readable.from('a', {objectMode: firstObjectMode}),
+		Readable.from('b', {objectMode: secondObjectMode}),
 	]);
 	t.is(stream.readableObjectMode, mergeObjectMode);
 	await stream.toArray();
@@ -119,8 +119,8 @@ test('is in objectMode if only some input streams are', testObjectMode, false, t
 test('is in objectMode if all input streams are', testObjectMode, true, true, true);
 
 test('add() cannot change objectMode', async t => {
-	const stream = mergeStreams([Readable.from(['.'], {objectMode: false})]);
-	stream.add(Readable.from(['.'], {objectMode: true}));
+	const stream = mergeStreams([Readable.from('.', {objectMode: false})]);
+	stream.add(Readable.from('.', {objectMode: true}));
 	t.false(stream.readableObjectMode);
 	await stream.toArray();
 });
@@ -145,22 +145,22 @@ test('Can destroy the merge stream before the input streams', async t => {
 });
 
 test('Does not hang when .unpipe() is called', async t => {
-	const inputStream = Readable.from(['.']);
+	const inputStream = Readable.from('.');
 	const stream = mergeStreams([inputStream]);
 	inputStream.unpipe(stream);
 	t.is(await text(stream), '');
 });
 
 test('Does not abort when .unpipe() is called on a different stream', async t => {
-	const stream = mergeStreams([Readable.from(['.'])]);
-	const inputStream = Readable.from([' ']);
+	const stream = mergeStreams([Readable.from('.')]);
+	const inputStream = Readable.from(' ');
 	inputStream.pipe(stream);
 	inputStream.unpipe(stream);
 	t.is(await text(stream), '.');
 });
 
 test('Keeps piping other streams after one is unpiped', async t => {
-	const inputStream = Readable.from([' ']);
+	const inputStream = Readable.from(' ');
 	const stream = mergeStreams([inputStream, Readable.from('.')]);
 	inputStream.unpipe(stream);
 	t.is(await text(stream), '.');
@@ -172,23 +172,23 @@ const testListenersCleanup = (t, inputStream, stream) => {
 };
 
 test('Cleans up input streams listeners on all input streams end', async t => {
-	const inputStream = Readable.from(['.']);
-	const stream = mergeStreams([inputStream, Readable.from(['.'])]);
+	const inputStream = Readable.from('.');
+	const stream = mergeStreams([inputStream, Readable.from('.')]);
 	t.is(await text(stream), '..');
 	testListenersCleanup(t, inputStream, stream);
 });
 
 test('Cleans up input streams listeners on any input streams abort', async t => {
-	const inputStream = Readable.from(['.']);
-	const stream = mergeStreams([inputStream, Readable.from(['.'])]);
+	const inputStream = Readable.from('.');
+	const stream = mergeStreams([inputStream, Readable.from('.')]);
 	inputStream.destroy();
 	await t.throwsAsync(stream.toArray(), {code: 'ERR_STREAM_PREMATURE_CLOSE'});
 	testListenersCleanup(t, inputStream, stream);
 });
 
 test('Cleans up input streams listeners on any input streams error', async t => {
-	const inputStream = Readable.from(['.']);
-	const stream = mergeStreams([inputStream, Readable.from(['.'])]);
+	const inputStream = Readable.from('.');
+	const stream = mergeStreams([inputStream, Readable.from('.')]);
 	const error = new Error('test');
 	inputStream.destroy(error);
 	t.is(await t.throwsAsync(stream.toArray()), error);
@@ -222,21 +222,21 @@ test('Cleans up input streams listeners on merged stream error', async t => {
 });
 
 test('The input streams might have already ended', async t => {
-	const inputStream = Readable.from(['.']);
+	const inputStream = Readable.from('.');
 	await inputStream.toArray();
 	const stream = mergeStreams([inputStream]);
 	t.deepEqual(await stream.toArray(), []);
 });
 
 test('The input streams might have already aborted', async t => {
-	const inputStream = Readable.from(['.']);
+	const inputStream = Readable.from('.');
 	inputStream.destroy();
 	const stream = mergeStreams([inputStream]);
 	await t.throwsAsync(stream.toArray(), {code: 'ERR_STREAM_PREMATURE_CLOSE'});
 });
 
 test('The input streams might have already errored', async t => {
-	const inputStream = Readable.from(['.']);
+	const inputStream = Readable.from('.');
 	const error = new Error('test');
 	inputStream.destroy(error);
 	const stream = mergeStreams([inputStream]);
@@ -244,26 +244,26 @@ test('The input streams might have already errored', async t => {
 });
 
 test('The added stream might have already ended', async t => {
-	const inputStream = Readable.from(['.']);
+	const inputStream = Readable.from('.');
 	await inputStream.toArray();
-	const stream = mergeStreams([Readable.from(['.'])]);
+	const stream = mergeStreams([Readable.from('.')]);
 	stream.add(inputStream);
 	t.is(await text(stream), '.');
 });
 
 test('The added stream might have already aborted', async t => {
-	const inputStream = Readable.from(['.']);
+	const inputStream = Readable.from('.');
 	inputStream.destroy();
-	const stream = mergeStreams([Readable.from(['.'])]);
+	const stream = mergeStreams([Readable.from('.')]);
 	stream.add(inputStream);
 	await t.throwsAsync(stream.toArray(), {code: 'ERR_STREAM_PREMATURE_CLOSE'});
 });
 
 test('The added stream might have already errored', async t => {
-	const inputStream = Readable.from(['.']);
+	const inputStream = Readable.from('.');
 	const error = new Error('test');
 	inputStream.destroy(error);
-	const stream = mergeStreams([Readable.from(['.'])]);
+	const stream = mergeStreams([Readable.from('.')]);
 	stream.add(inputStream);
 	t.is(await t.throwsAsync(stream.toArray()), error);
 });
@@ -283,8 +283,8 @@ test('highWaterMark is the maximum of object input streams', testHighWaterMarkAm
 test('highWaterMark is the maximum of object streams if mixed with non-object ones', testHighWaterMarkAmount, false, true, 2);
 
 test('add() cannot change highWaterMark', async t => {
-	const stream = mergeStreams([Readable.from(['.'], {highWaterMark: 2})]);
-	stream.add(Readable.from(['.'], {highWaterMark: 4}));
+	const stream = mergeStreams([Readable.from('.', {highWaterMark: 2})]);
+	stream.add(Readable.from('.', {highWaterMark: 4}));
 	t.is(stream.readableHighWaterMark, 2);
 	t.is(stream.writableHighWaterMark, 2);
 	await stream.toArray();
@@ -326,7 +326,7 @@ test('Use the correct highWaterMark', testBufferSize, false);
 test('Use the correct highWaterMark, objectMode', testBufferSize, true);
 
 test('Buffers streams before consumption', async t => {
-	const inputStream = Readable.from(['.']);
+	const inputStream = Readable.from('.');
 	const stream = mergeStreams([inputStream]);
 	await scheduler.yield();
 
@@ -387,7 +387,7 @@ test('Handles setting maxListeners to Infinity', async t => {
 });
 
 test('Only increments maxListeners of input streams by 2', async t => {
-	const inputStream = Readable.from(['.']);
+	const inputStream = Readable.from('.');
 	inputStream.setMaxListeners(2);
 	const stream = mergeStreams([inputStream]);
 	assertMaxListeners(t, inputStream, 0);
