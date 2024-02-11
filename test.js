@@ -420,13 +420,11 @@ test('cannot add stream after all streams have ended', async t => {
 	await stream.toArray();
 });
 
-test('cannot add same stream twice', async t => {
+test('adding same stream twice is a noop', async t => {
 	const inputStream = Readable.from('.');
 	const stream = mergeStreams([inputStream]);
-	t.throws(() => {
-		stream.add(inputStream);
-	}, {message: /cannot be added/});
-	await stream.toArray();
+	stream.add(inputStream);
+	t.is(await text(stream), '.');
 });
 
 test('can remove stream before it ends', async t => {

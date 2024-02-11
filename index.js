@@ -54,12 +54,12 @@ class MergedStream extends PassThroughStream {
 	add(stream) {
 		validateStream(stream);
 
-		if (this.#streams.has(stream)) {
-			throw new TypeError('Stream cannot be added because it is already piped.');
-		}
-
 		if (!this.writable) {
 			throw new TypeError('The merged stream has already ended.');
+		}
+
+		if (this.#streams.has(stream)) {
+			return;
 		}
 
 		this.#streams.add(stream);
