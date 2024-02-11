@@ -1,3 +1,5 @@
+import {type Readable} from 'node:stream';
+
 /**
 Merges an array of [readable streams](https://nodejs.org/api/stream.html#readable-streams) and returns a new readable stream that emits data from the individual streams as it arrives.
 
@@ -18,4 +20,23 @@ for await (const chunk of stream) {
 }
 ```
 */
-export default function mergeStreams(streams: NodeJS.ReadableStream[]): NodeJS.ReadableStream;
+export default function mergeStreams(streams: Readable[]): MergedStreams;
+
+/**
+Single stream combining the output of multiple streams.
+*/
+export class MergedStreams extends Readable {
+	/**
+	Pipe a new readable stream.
+
+	This fails if `MergedStream` has already ended.
+	*/
+	add(stream: Readable): void;
+
+	/**
+	Unpipe a previously added stream.
+
+	The removed stream is not automatically ended.
+	*/
+	remove(stream: Readable): void;
+}

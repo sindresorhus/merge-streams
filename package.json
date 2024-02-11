@@ -20,7 +20,7 @@
 		"node": ">=18"
 	},
 	"scripts": {
-		"test": "xo && ava && tsc index.d.ts"
+		"test": "xo && c8 ava && tsd"
 	},
 	"files": [
 		"index.js",
@@ -38,8 +38,11 @@
 		"unified"
 	],
 	"devDependencies": {
+		"@types/node": "^20.8.9",
 		"ava": "^6.1.0",
+		"c8": "^9.1.0",
 		"tempfile": "^5.0.0",
+		"tsd": "^0.30.4",
 		"typescript": "^5.2.2",
 		"xo": "^0.56.0"
 	}
