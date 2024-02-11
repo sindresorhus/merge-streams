@@ -59,7 +59,6 @@ class MergedStream extends PassThroughStream {
 		}
 
 		this.#streams.add(stream);
-		this.#ended.delete(stream);
 		endWhenStreamsDone({passThroughStream: this, stream, streams: this.#streams, ended: this.#ended, onComplete: this.#onComplete});
 		updateMaxListeners(this, PASSTHROUGH_LISTENERS_PER_STREAM);
 		stream.pipe(this, {end: false});
@@ -116,7 +115,7 @@ const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, on
 			await Promise.race([
 				onComplete,
 				onInputStreamEnd(stream, streams, ended, abortController),
-				onInputStreamUnpipe(stream, streams, abortController),
+				onInputStreamUnpipe(stream, streams, ended, abortController),
 			]);
 		} finally {
 			abortController.abort();
@@ -142,9 +141,10 @@ const onInputStreamEnd = async (stream, streams, ended, {signal}) => {
 	}
 };
 
-const onInputStreamUnpipe = async (stream, streams, {signal}) => {
+const onInputStreamUnpipe = async (stream, streams, ended, {signal}) => {
 	await once(stream, unpipeEvent, {signal});
 	streams.delete(stream);
+	ended.delete(stream);
 };
 
 const unpipeEvent = Symbol('unpipe');
