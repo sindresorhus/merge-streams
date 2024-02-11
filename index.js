@@ -52,12 +52,14 @@ class MergedStream extends PassThroughStream {
 	}
 
 	add(stream) {
+		validateStream(stream);
+
 		if (!this.writable) {
 			throw new TypeError('The merged stream has already ended.');
 		}
 
-		validateStream(stream);
 		this.#streams.push(stream);
+		this.#ended.delete(stream);
 		endWhenStreamsDone({passThroughStream: this, stream, streams: this.#streams, ended: this.#ended, onComplete: this.#onComplete});
 		updateMaxListeners(this, PASSTHROUGH_LISTENERS_PER_STREAM);
 		stream.pipe(this, {end: false});

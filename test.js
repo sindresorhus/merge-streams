@@ -456,6 +456,27 @@ test('can remove stream until no input', async t => {
 	t.is(await text(stream), '');
 });
 
+test('can remove then add again a stream', async t => {
+	const pendingStream = new PassThrough();
+	const secondPendingStream = new PassThrough();
+	const stream = mergeStreams([pendingStream, secondPendingStream]);
+	const streamPromise = text(stream);
+
+	secondPendingStream.write('.');
+	const firstWrite = await once(stream, 'data');
+	t.is(firstWrite.toString(), '.');
+
+	stream.remove(secondPendingStream);
+	await scheduler.yield();
+
+	stream.add(secondPendingStream);
+	pendingStream.end('.');
+	await scheduler.yield();
+
+	secondPendingStream.end('.');
+	t.is(await streamPromise, '...');
+});
+
 const testInvalidRemove = async (t, removeArgument) => {
 	const stream = mergeStreams([Readable.from('.')]);
 	t.throws(() => {
