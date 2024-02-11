@@ -146,7 +146,7 @@ const updateMaxListeners = (passThroughStream, increment) => {
 	passThroughStream.setMaxListeners(passThroughStream.getMaxListeners() + increment);
 };
 
-// Number of times `passThroughStream.on()` is called regardless of stream:
+// Number of times `passThroughStream.on()` is called regardless of streams:
 //  - once due to `finished(passThroughStream)`
 //  - once due to `on(passThroughStream)`
 const PASSTHROUGH_LISTENERS_COUNT = 2;
