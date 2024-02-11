@@ -46,6 +46,6 @@ Throws if `MergedStream` has already ended.
 
 ##### `MergedStream.remove(stream: stream.Readable): void`
 
-Unpipe a previously added stream.
+Unpipe a stream previously added using either [`mergeStreams(streams)`](#mergestreamsstreams-streamreadable-mergedstream) or [`MergedStream.add(stream)`](#mergedstreamaddstream-streamreadable-void).
 
 The removed stream is not automatically ended.
