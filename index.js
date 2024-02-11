@@ -65,7 +65,7 @@ class MergedStreams extends PassThroughStream {
 
 	remove(stream) {
 		if (!this.#streams.includes(stream)) {
-			throw new TypeError('Stream was not piped, so it cannot be removed.');
+			throw new TypeError('Stream cannot be removed because it was not piped.');
 		}
 
 		stream.unpipe(this);
