@@ -117,7 +117,7 @@ const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, on
 		try {
 			await Promise.race([
 				onComplete,
-				onInputStreamEnd(stream, streams, ended, abortController),
+				onInputStreamEnd({stream, streams, ended, abortController}),
 				onInputStreamUnpipe({passThroughStream, stream, streams, ended, abortController}),
 			]);
 		} finally {
@@ -137,7 +137,7 @@ const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, on
 	}
 };
 
-const onInputStreamEnd = async (stream, streams, ended, {signal}) => {
+const onInputStreamEnd = async ({stream, streams, ended, abortController: {signal}}) => {
 	await finished(stream, {signal, cleanup: true, readable: true, writable: false});
 	if (streams.has(stream)) {
 		ended.add(stream);
