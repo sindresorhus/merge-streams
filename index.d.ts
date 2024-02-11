@@ -20,12 +20,12 @@ for await (const chunk of stream) {
 }
 ```
 */
-export default function mergeStreams(streams: Readable[]): MergedStreams;
+export default function mergeStreams(streams: Readable[]): MergedStream;
 
 /**
 Single stream combining the output of multiple streams.
 */
-export class MergedStreams extends Readable {
+export class MergedStream extends Readable {
 	/**
 	Pipe a new readable stream.
 

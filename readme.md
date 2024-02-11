@@ -26,25 +26,25 @@ for await (const chunk of stream) {
 
 ## API
 
-### `mergeStreams(streams: stream.Readable[]): MergedStreams`
+### `mergeStreams(streams: stream.Readable[]): MergedStream`
 
 Merges an array of [readable streams](https://nodejs.org/api/stream.html#readable-streams) and returns a new readable stream that emits data from the individual streams as it arrives.
 
 If you provide an empty array, it returns an already-ended stream.
 
-#### `MergedStreams`
+#### `MergedStream`
 
 _Type_: `stream.Readable`
 
 Single stream combining the output of multiple streams.
 
-##### `MergedStreams.add(stream: stream.Readable): void`
+##### `MergedStream.add(stream: stream.Readable): void`
 
 Pipe a new readable stream.
 
 This fails if `MergedStream` has already ended.
 
-##### `MergedStreams.remove(stream: stream.Readable): void`
+##### `MergedStream.remove(stream: stream.Readable): void`
 
 Unpipe a previously added stream.
 

@@ -13,7 +13,7 @@ export default function mergeStreams(streams) {
 
 	const objectMode = streams.some(({readableObjectMode}) => readableObjectMode);
 	const highWaterMark = getHighWaterMark(streams, objectMode);
-	const passThroughStream = new MergedStreams({
+	const passThroughStream = new MergedStream({
 		objectMode,
 		writableHighWaterMark: highWaterMark,
 		readableHighWaterMark: highWaterMark,
@@ -41,7 +41,7 @@ const getHighWaterMark = (streams, objectMode) => {
 	return Math.max(...highWaterMarks);
 };
 
-class MergedStreams extends PassThroughStream {
+class MergedStream extends PassThroughStream {
 	#streams = [];
 	#ended = new Set([]);
 	#onComplete;

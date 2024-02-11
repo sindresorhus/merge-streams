@@ -1,9 +1,10 @@
 import {Readable} from 'node:stream';
 import {expectType, expectError, expectAssignable} from 'tsd';
-import mergeStreams from './index.js';
+import mergeStreams, {type MergedStream} from './index.js';
 
 const readableStream = Readable.from('.');
 
+expectType<MergedStream>(mergeStreams([]));
 expectAssignable<Readable>(mergeStreams([]));
 expectAssignable<Readable>(mergeStreams([readableStream]));
 
