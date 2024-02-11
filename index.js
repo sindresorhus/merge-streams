@@ -115,7 +115,8 @@ const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, on
 		try {
 			await Promise.race([
 				onComplete,
-				onInputStreamEnd(stream, ended, abortController),
+				onInputStreamEnd(stream, streams, ended, abortController),
+				onInputStreamUnpipe(stream, streams, abortController),
 			]);
 		} finally {
 			abortController.abort();
@@ -134,12 +135,16 @@ const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, on
 	}
 };
 
-const onInputStreamEnd = async (stream, ended, {signal}) => {
-	await Promise.race([
-		finished(stream, {signal, cleanup: true, readable: true, writable: false}),
-		once(stream, unpipeEvent, {signal}),
-	]);
-	ended.add(stream);
+const onInputStreamEnd = async (stream, streams, ended, {signal}) => {
+	await finished(stream, {signal, cleanup: true, readable: true, writable: false});
+	if (streams.has(stream)) {
+		ended.add(stream);
+	}
+};
+
+const onInputStreamUnpipe = async (stream, streams, {signal}) => {
+	await once(stream, unpipeEvent, {signal});
+	streams.delete(stream);
 };
 
 const unpipeEvent = Symbol('unpipe');
