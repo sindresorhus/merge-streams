@@ -44,11 +44,11 @@ const getHighWaterMark = (streams, objectMode) => {
 class MergedStream extends PassThroughStream {
 	#streams = new Set([]);
 	#ended = new Set([]);
-	#onComplete;
+	#onFinished;
 
 	constructor(...args) {
 		super(...args);
-		this.#onComplete = onMergedStreamComplete(this, this.#streams);
+		this.#onFinished = onMergedStreamFinished(this, this.#streams);
 	}
 
 	add(stream) {
@@ -63,7 +63,7 @@ class MergedStream extends PassThroughStream {
 		}
 
 		this.#streams.add(stream);
-		endWhenStreamsDone({passThroughStream: this, stream, streams: this.#streams, ended: this.#ended, onComplete: this.#onComplete});
+		endWhenStreamsDone({passThroughStream: this, stream, streams: this.#streams, ended: this.#ended, onFinished: this.#onFinished});
 		updateMaxListeners(this, PASSTHROUGH_LISTENERS_PER_STREAM);
 		stream.pipe(this, {end: false});
 	}
@@ -77,7 +77,7 @@ class MergedStream extends PassThroughStream {
 	}
 }
 
-const onMergedStreamComplete = async (passThroughStream, streams) => {
+const onMergedStreamFinished = async (passThroughStream, streams) => {
 	updateMaxListeners(passThroughStream, PASSTHROUGH_LISTENERS_COUNT);
 	const abortController = new AbortController();
 	try {
@@ -111,12 +111,12 @@ const validateStream = stream => {
 	}
 };
 
-const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, onComplete}) => {
+const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, onFinished}) => {
 	try {
 		const abortController = new AbortController();
 		try {
 			await Promise.race([
-				onComplete,
+				onFinished,
 				onInputStreamEnd({stream, streams, ended, abortController}),
 				onInputStreamUnpipe({passThroughStream, stream, streams, ended, abortController}),
 			]);
