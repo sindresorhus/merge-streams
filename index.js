@@ -42,7 +42,7 @@ const getHighWaterMark = (streams, objectMode) => {
 };
 
 class MergedStream extends PassThroughStream {
-	#streams = [];
+	#streams = new Set([]);
 	#ended = new Set([]);
 	#onComplete;
 
@@ -58,7 +58,7 @@ class MergedStream extends PassThroughStream {
 			throw new TypeError('The merged stream has already ended.');
 		}
 
-		this.#streams.push(stream);
+		this.#streams.add(stream);
 		this.#ended.delete(stream);
 		endWhenStreamsDone({passThroughStream: this, stream, streams: this.#streams, ended: this.#ended, onComplete: this.#onComplete});
 		updateMaxListeners(this, PASSTHROUGH_LISTENERS_PER_STREAM);
@@ -66,7 +66,7 @@ class MergedStream extends PassThroughStream {
 	}
 
 	remove(stream) {
-		if (!this.#streams.includes(stream)) {
+		if (!this.#streams.has(stream)) {
 			throw new TypeError('Stream cannot be removed because it was not piped.');
 		}
 
@@ -96,7 +96,7 @@ const onMergedStreamEnd = async (passThroughStream, {signal}) => {
 
 const onInputStreamsUnpipe = async (passThroughStream, streams, {signal}) => {
 	for await (const [unpipedStream] of on(passThroughStream, 'unpipe', {signal})) {
-		if (streams.includes(unpipedStream)) {
+		if (streams.has(unpipedStream)) {
 			unpipedStream.emit(unpipeEvent);
 			updateMaxListeners(passThroughStream, -PASSTHROUGH_LISTENERS_PER_STREAM);
 		}
@@ -121,7 +121,7 @@ const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, on
 			abortController.abort();
 		}
 
-		if (streams.every(stream => ended.has(stream)) && passThroughStream.writable) {
+		if ([...streams].every(stream => ended.has(stream)) && passThroughStream.writable) {
 			passThroughStream.end();
 		}
 	} catch (error) {
