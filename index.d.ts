@@ -29,7 +29,7 @@ export class MergedStream extends Readable {
 	/**
 	Pipe a new readable stream.
 
-	This fails if `MergedStream` has already ended.
+	Throws if `MergedStream` has already ended.
 	*/
 	add(stream: Readable): void;
 

@@ -42,7 +42,7 @@ Single stream combining the output of multiple streams.
 
 Pipe a new readable stream.
 
-This fails if `MergedStream` has already ended.
+Throws if `MergedStream` has already ended.
 
 ##### `MergedStream.remove(stream: stream.Readable): void`
 
