@@ -92,18 +92,18 @@ const onMergedStreamEnd = async (passThroughStream, {signal}) => {
 	} catch {}
 };
 
-const validateStream = stream => {
-	if (typeof stream?.pipe !== 'function') {
-		throw new TypeError(`Expected a readable stream, got: \`${typeof stream}\`.`);
-	}
-};
-
 const onInputStreamsUnpipe = async (passThroughStream, streams, {signal}) => {
 	for await (const [unpipedStream] of on(passThroughStream, 'unpipe', {signal})) {
 		if (streams.includes(unpipedStream)) {
 			unpipedStream.emit(unpipeEvent);
 			updateMaxListeners(passThroughStream, -PASSTHROUGH_LISTENERS_PER_STREAM);
 		}
+	}
+};
+
+const validateStream = stream => {
+	if (typeof stream?.pipe !== 'function') {
+		throw new TypeError(`Expected a readable stream, got: \`${typeof stream}\`.`);
 	}
 };
 
