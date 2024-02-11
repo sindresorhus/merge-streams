@@ -101,7 +101,6 @@ const onInputStreamsUnpipe = async (passThroughStream, streams, {signal}) => {
 	for await (const [unpipedStream] of on(passThroughStream, 'unpipe', {signal})) {
 		if (streams.has(unpipedStream)) {
 			unpipedStream.emit(unpipeEvent);
-			updateMaxListeners(passThroughStream, -PASSTHROUGH_LISTENERS_PER_STREAM);
 		}
 	}
 };
@@ -119,7 +118,7 @@ const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, on
 			await Promise.race([
 				onComplete,
 				onInputStreamEnd(stream, streams, ended, abortController),
-				onInputStreamUnpipe(stream, streams, ended, abortController),
+				onInputStreamUnpipe({passThroughStream, stream, streams, ended, abortController}),
 			]);
 		} finally {
 			abortController.abort();
@@ -145,10 +144,11 @@ const onInputStreamEnd = async (stream, streams, ended, {signal}) => {
 	}
 };
 
-const onInputStreamUnpipe = async (stream, streams, ended, {signal}) => {
+const onInputStreamUnpipe = async ({passThroughStream, stream, streams, ended, abortController: {signal}}) => {
 	await once(stream, unpipeEvent, {signal});
 	streams.delete(stream);
 	ended.delete(stream);
+	updateMaxListeners(passThroughStream, -PASSTHROUGH_LISTENERS_PER_STREAM);
 };
 
 const unpipeEvent = Symbol('unpipe');
