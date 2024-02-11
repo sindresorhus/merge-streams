@@ -124,7 +124,7 @@ const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, on
 			abortController.abort();
 		}
 
-		if ([...streams].every(stream => ended.has(stream)) && passThroughStream.writable) {
+		if (streams.size === ended.size && passThroughStream.writable) {
 			passThroughStream.end();
 		}
 	} catch (error) {
