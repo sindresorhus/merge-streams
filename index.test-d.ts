@@ -22,4 +22,3 @@ expectType<void>(mergedStream.remove(readableStream));
 expectError(mergedStream.remove());
 expectError(mergedStream.remove([]));
 expectError(mergedStream.remove(''));
-
