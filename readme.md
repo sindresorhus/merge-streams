@@ -36,7 +36,7 @@ If you provide an empty array, it returns an already-ended stream.
 
 _Type_: `stream.Readable`
 
-Single stream combining the output of multiple streams.
+A single stream combining the output of multiple streams.
 
 ##### `MergedStream.add(stream: stream.Readable): void`
 
