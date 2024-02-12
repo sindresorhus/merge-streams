@@ -10,7 +10,7 @@ import mergeStreams from './index.js';
 
 const getInfiniteStream = () => new Readable({read() {}});
 
-test('works with Readable.from()', async t => {
+test('Works with Readable.from()', async t => {
 	const stream = mergeStreams([
 		Readable.from(['a', 'b']),
 		Readable.from(['c', 'd']),
@@ -22,7 +22,7 @@ test('works with Readable.from()', async t => {
 
 const bigContents = '.'.repeat(1e6);
 
-test('works with fs.createReadStream()', async t => {
+test('Works with fs.createReadStream()', async t => {
 	const files = [tempfile(), tempfile()];
 	await Promise.all(files.map(file => writeFile(file, bigContents)));
 
@@ -41,7 +41,7 @@ test('Handles large values', async t => {
 	t.is(await text(stream), largeValue.repeat(largeRepeat));
 });
 
-test('propagate stream errors', async t => {
+test('Propagate stream errors', async t => {
 	const inputStream = getInfiniteStream();
 	const stream = mergeStreams([inputStream]);
 	const error = new Error('test');
@@ -55,7 +55,7 @@ test('propagate stream errors', async t => {
 	t.true(stream.destroyed);
 });
 
-test('propagate stream aborts', async t => {
+test('Propagate stream aborts', async t => {
 	const inputStream = getInfiniteStream();
 	const stream = mergeStreams([inputStream]);
 	inputStream.destroy();
@@ -67,7 +67,7 @@ test('propagate stream aborts', async t => {
 	t.true(stream.destroyed);
 });
 
-test('handles no input', async t => {
+test('Handles no input', async t => {
 	const stream = mergeStreams([]);
 	t.false(stream.readableObjectMode);
 	t.false(stream.writableObjectMode);
@@ -79,7 +79,7 @@ test('handles no input', async t => {
 	t.false(stream.readable);
 });
 
-test('cannot add stream after initially setting to no input', async t => {
+test('Cannot add stream after initially setting to no input', async t => {
 	const stream = mergeStreams([]);
 	t.throws(() => {
 		stream.add(Readable.from('.'));
@@ -87,19 +87,19 @@ test('cannot add stream after initially setting to no input', async t => {
 	await stream.toArray();
 });
 
-test('validates argument is an array', t => {
+test('Validates argument is an array', t => {
 	t.throws(() => {
 		mergeStreams(Readable.from('.'));
 	}, {message: /Expected an array/});
 });
 
-test('validates arguments are streams', t => {
+test('Validates arguments are streams', t => {
 	t.throws(() => {
 		mergeStreams([false]);
 	}, {message: /Expected a readable stream/});
 });
 
-test('validates add() argument is stream', t => {
+test('Validates add() argument is stream', t => {
 	t.throws(() => {
 		mergeStreams([Readable.from('.')]).add(false);
 	}, {message: /Expected a readable stream/});
@@ -114,11 +114,11 @@ const testObjectMode = async (t, firstObjectMode, secondObjectMode, mergeObjectM
 	await stream.toArray();
 };
 
-test('is not in objectMode if no input stream is', testObjectMode, false, false, false);
-test('is in objectMode if only some input streams are', testObjectMode, false, true, true);
-test('is in objectMode if all input streams are', testObjectMode, true, true, true);
+test('Is not in objectMode if no input stream is', testObjectMode, false, false, false);
+test('Is in objectMode if only some input streams are', testObjectMode, false, true, true);
+test('Is in objectMode if all input streams are', testObjectMode, true, true, true);
 
-test('add() cannot change objectMode', async t => {
+test('"add()" cannot change objectMode', async t => {
 	const stream = mergeStreams([Readable.from('.', {objectMode: false})]);
 	stream.add(Readable.from('.', {objectMode: true}));
 	t.false(stream.readableObjectMode);
@@ -278,11 +278,11 @@ const testHighWaterMarkAmount = async (t, firstObjectMode, secondObjectMode, hig
 	await stream.toArray();
 };
 
-test('highWaterMark is the maximum of non-object input streams', testHighWaterMarkAmount, false, false, 4);
-test('highWaterMark is the maximum of object input streams', testHighWaterMarkAmount, true, true, 4);
-test('highWaterMark is the maximum of object streams if mixed with non-object ones', testHighWaterMarkAmount, false, true, 2);
+test('"highWaterMark" is the maximum of non-object input streams', testHighWaterMarkAmount, false, false, 4);
+test('"highWaterMark" is the maximum of object input streams', testHighWaterMarkAmount, true, true, 4);
+test('"highWaterMark" is the maximum of object streams if mixed with non-object ones', testHighWaterMarkAmount, false, true, 2);
 
-test('add() cannot change highWaterMark', async t => {
+test('"add()" cannot change highWaterMark', async t => {
 	const stream = mergeStreams([Readable.from('.', {highWaterMark: 2})]);
 	stream.add(Readable.from('.', {highWaterMark: 4}));
 	t.is(stream.readableHighWaterMark, 2);
@@ -394,13 +394,13 @@ test('Only increments maxListeners of input streams by 2', async t => {
 	await stream.toArray();
 });
 
-test('can add stream after no streams have ended', async t => {
+test('Can add stream after no streams have ended', async t => {
 	const stream = mergeStreams([Readable.from('.')]);
 	stream.add(Readable.from('.'));
 	t.is(await text(stream), '..');
 });
 
-test('can add stream after some streams but not all streams have ended', async t => {
+test('Can add stream after some streams but not all streams have ended', async t => {
 	const inputStream = Readable.from('.');
 	const pendingStream = new PassThrough();
 	const stream = mergeStreams([inputStream, pendingStream]);
@@ -410,7 +410,7 @@ test('can add stream after some streams but not all streams have ended', async t
 	t.is(await text(stream), '...');
 });
 
-test('cannot add stream after all streams have ended', async t => {
+test('Cannot add stream after all streams have ended', async t => {
 	const stream = mergeStreams([Readable.from('.')]);
 	t.is(await text(stream), '.');
 	const inputStream = Readable.from('.');
@@ -420,14 +420,14 @@ test('cannot add stream after all streams have ended', async t => {
 	await stream.toArray();
 });
 
-test('adding same stream twice is a noop', async t => {
+test('Adding same stream twice is a noop', async t => {
 	const inputStream = Readable.from('.');
 	const stream = mergeStreams([inputStream]);
 	stream.add(inputStream);
 	t.is(await text(stream), '.');
 });
 
-test('can remove stream before it ends', async t => {
+test('Can remove stream before it ends', async t => {
 	const inputStream = Readable.from('.');
 	const stream = mergeStreams([Readable.from('.'), inputStream]);
 	stream.remove(inputStream);
@@ -435,7 +435,7 @@ test('can remove stream before it ends', async t => {
 	t.is(await text(stream), '.');
 });
 
-test('can remove stream after it ends', async t => {
+test('Can remove stream after it ends', async t => {
 	const inputStream = Readable.from('.');
 	const pendingStream = new PassThrough();
 	const stream = mergeStreams([pendingStream, inputStream]);
@@ -445,7 +445,7 @@ test('can remove stream after it ends', async t => {
 	t.is(await text(stream), '. ');
 });
 
-test('can remove stream after other streams have ended', async t => {
+test('Can remove stream after other streams have ended', async t => {
 	const inputStream = Readable.from('.');
 	const pendingStream = new PassThrough();
 	const stream = mergeStreams([pendingStream, inputStream]);
@@ -456,14 +456,14 @@ test('can remove stream after other streams have ended', async t => {
 	pendingStream.end();
 });
 
-test('can remove stream until no input', async t => {
+test('Can remove stream until no input', async t => {
 	const inputStream = Readable.from('.');
 	const stream = mergeStreams([inputStream]);
 	stream.remove(inputStream);
 	t.is(await text(stream), '');
 });
 
-test('can remove then add again a stream', async t => {
+test('Can remove then add again a stream', async t => {
 	const pendingStream = new PassThrough();
 	const secondPendingStream = new PassThrough();
 	const stream = mergeStreams([pendingStream, secondPendingStream]);
@@ -484,7 +484,7 @@ test('can remove then add again a stream', async t => {
 	t.is(await streamPromise, '...');
 });
 
-test('cannot remove same stream twice', async t => {
+test('Cannot remove same stream twice', async t => {
 	const inputStream = Readable.from('.');
 	const stream = mergeStreams([inputStream]);
 	stream.remove(inputStream);
@@ -503,10 +503,10 @@ const testInvalidRemove = async (t, removeArgument) => {
 	await stream.toArray();
 };
 
-test('cannot remove stream if not piped', testInvalidRemove, Readable.from('.'));
-test('cannot pass a non-stream to remove()', testInvalidRemove, '.');
-test('cannot pass undefined to remove()', testInvalidRemove, undefined);
-test('cannot pass null to remove()', testInvalidRemove, null);
+test('Cannot remove stream if not piped', testInvalidRemove, Readable.from('.'));
+test('Cannot pass a non-stream to remove()', testInvalidRemove, '.');
+test('Cannot pass undefined to remove()', testInvalidRemove, undefined);
+test('Cannot pass null to remove()', testInvalidRemove, null);
 
 test('PassThrough streams methods are not overridden', t => {
 	t.is(PassThrough.prototype.add, undefined);
