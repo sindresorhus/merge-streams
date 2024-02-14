@@ -1,5 +1,5 @@
 import {on, once} from 'node:events';
-import {PassThrough as PassThroughStream, getDefaultHighWaterMark} from 'node:stream';
+import {PassThrough as PassThroughStream} from 'node:stream';
 import {finished} from 'node:stream/promises';
 
 export default function mergeStreams(streams) {
@@ -32,7 +32,8 @@ export default function mergeStreams(streams) {
 
 const getHighWaterMark = (streams, objectMode) => {
 	if (streams.length === 0) {
-		return getDefaultHighWaterMark(objectMode);
+		// @todo Use `node:stream` `getDefaultHighWaterMark(objectMode)` in next major release
+		return 16_384;
 	}
 
 	const highWaterMarks = streams
