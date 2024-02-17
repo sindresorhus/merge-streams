@@ -45,6 +45,7 @@ const getHighWaterMark = (streams, objectMode) => {
 class MergedStream extends PassThroughStream {
 	#streams = new Set([]);
 	#ended = new Set([]);
+	#aborted = new Set([]);
 	#onFinished;
 
 	constructor(...args) {
@@ -64,7 +65,13 @@ class MergedStream extends PassThroughStream {
 		}
 
 		this.#streams.add(stream);
-		endWhenStreamsDone({passThroughStream: this, stream, streams: this.#streams, ended: this.#ended, onFinished: this.#onFinished});
+		endWhenStreamsDone({
+			passThroughStream: this,
+			stream, streams: this.#streams,
+			ended: this.#ended,
+			aborted: this.#aborted,
+			onFinished: this.#onFinished,
+		});
 		updateMaxListeners(this, PASSTHROUGH_LISTENERS_PER_STREAM);
 		stream.pipe(this, {end: false});
 	}
@@ -80,14 +87,15 @@ class MergedStream extends PassThroughStream {
 
 const onMergedStreamFinished = async (passThroughStream, streams) => {
 	updateMaxListeners(passThroughStream, PASSTHROUGH_LISTENERS_COUNT);
-	const abortController = new AbortController();
+	const controller = new AbortController();
+
 	try {
 		await Promise.race([
-			onMergedStreamEnd(passThroughStream, abortController),
-			onInputStreamsUnpipe(passThroughStream, streams, abortController),
+			onMergedStreamEnd(passThroughStream, controller),
+			onInputStreamsUnpipe(passThroughStream, streams, controller),
 		]);
 	} finally {
-		abortController.abort();
+		controller.abort();
 		updateMaxListeners(passThroughStream, -PASSTHROUGH_LISTENERS_COUNT);
 	}
 };
@@ -112,43 +120,55 @@ const validateStream = stream => {
 	}
 };
 
-const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, onFinished}) => {
-	try {
-		const abortController = new AbortController();
-		try {
-			await Promise.race([
-				onFinished,
-				onInputStreamEnd({stream, streams, ended, abortController}),
-				onInputStreamUnpipe({passThroughStream, stream, streams, ended, abortController}),
-			]);
-		} finally {
-			abortController.abort();
-		}
+const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, aborted, onFinished}) => {
+	const controller = new AbortController();
 
-		if (streams.size === ended.size && passThroughStream.writable) {
+	try {
+		await Promise.race([
+			onFinished,
+			onInputStreamEnd({passThroughStream, stream, streams, ended, aborted, controller}),
+			onInputStreamUnpipe({passThroughStream, stream, streams, ended, aborted, controller}),
+		]);
+	} finally {
+		controller.abort();
+	}
+
+	if (streams.size === ended.size + aborted.size && passThroughStream.writable) {
+		if (ended.size === 0 && aborted.size > 0) {
+			passThroughStream.destroy();
+		} else {
 			passThroughStream.end();
 		}
+	}
+};
+
+// This is the error thrown by `finished()` on `stream.destroy()`
+const isAbortError = error => error?.code === 'ERR_STREAM_PREMATURE_CLOSE';
+
+const onInputStreamEnd = async ({passThroughStream, stream, streams, ended, aborted, controller: {signal}}) => {
+	try {
+		await finished(stream, {signal, cleanup: true, readable: true, writable: false});
+		if (streams.has(stream)) {
+			ended.add(stream);
+		}
 	} catch (error) {
-		// This is the error thrown by `finished()` on `stream.destroy()`
-		if (error?.code === 'ERR_STREAM_PREMATURE_CLOSE') {
-			passThroughStream.destroy();
+		if (signal.aborted || !streams.has(stream)) {
+			return;
+		}
+
+		if (isAbortError(error)) {
+			aborted.add(stream);
 		} else {
 			passThroughStream.destroy(error);
 		}
 	}
 };
 
-const onInputStreamEnd = async ({stream, streams, ended, abortController: {signal}}) => {
-	await finished(stream, {signal, cleanup: true, readable: true, writable: false});
-	if (streams.has(stream)) {
-		ended.add(stream);
-	}
-};
-
-const onInputStreamUnpipe = async ({passThroughStream, stream, streams, ended, abortController: {signal}}) => {
+const onInputStreamUnpipe = async ({passThroughStream, stream, streams, ended, aborted, controller: {signal}}) => {
 	await once(stream, unpipeEvent, {signal});
 	streams.delete(stream);
 	ended.delete(stream);
+	aborted.delete(stream);
 	updateMaxListeners(passThroughStream, -PASSTHROUGH_LISTENERS_PER_STREAM);
 };
 
