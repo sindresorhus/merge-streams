@@ -60,10 +60,6 @@ class MergedStream extends PassThroughStream {
 			return;
 		}
 
-		if (!this.writable) {
-			throw new TypeError('The merged stream has already ended.');
-		}
-
 		this.#streams.add(stream);
 		endWhenStreamsDone({
 			passThroughStream: this,
