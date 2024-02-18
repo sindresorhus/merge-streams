@@ -174,7 +174,10 @@ const onInputStreamUnpipe = async ({passThroughStream, stream, streams, ended, a
 const unpipeEvent = Symbol('unpipe');
 
 const updateMaxListeners = (passThroughStream, increment) => {
-	passThroughStream.setMaxListeners(passThroughStream.getMaxListeners() + increment);
+	const maxListeners = passThroughStream.getMaxListeners();
+	if (maxListeners !== 0 && maxListeners !== Number.POSITIVE_INFINITY) {
+		passThroughStream.setMaxListeners(maxListeners + increment);
+	}
 };
 
 // Number of times `passThroughStream.on()` is called regardless of streams:

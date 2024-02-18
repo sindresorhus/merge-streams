@@ -416,18 +416,21 @@ test('Updates maxListeners of merged streams with add() and remove()', async t =
 	t.is(stream.getMaxListeners(), defaultMaxListeners);
 });
 
-test('Handles setting maxListeners to Infinity', async t => {
+const testInfiniteMaxListeners = async (t, maxListeners) => {
 	const stream = mergeStreams([Readable.from('.')]);
-	stream.setMaxListeners(Number.POSITIVE_INFINITY);
-	t.is(stream.getMaxListeners(), Number.POSITIVE_INFINITY);
+	stream.setMaxListeners(maxListeners);
+	t.is(stream.getMaxListeners(), maxListeners);
 
 	stream.add(Readable.from('.'));
-	t.is(stream.getMaxListeners(), Number.POSITIVE_INFINITY);
+	t.is(stream.getMaxListeners(), maxListeners);
 
 	await stream.toArray();
 	await scheduler.yield();
-	t.is(stream.getMaxListeners(), Number.POSITIVE_INFINITY);
-});
+	t.is(stream.getMaxListeners(), maxListeners);
+};
+
+test('Handles setting maxListeners to Infinity', testInfiniteMaxListeners, Number.POSITIVE_INFINITY);
+test('Handles setting maxListeners to 0', testInfiniteMaxListeners, 0);
 
 test('Only increments maxListeners of input streams by 2', async t => {
 	const inputStream = Readable.from('.');
