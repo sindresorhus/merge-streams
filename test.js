@@ -107,12 +107,20 @@ test('Handles no input', async t => {
 	t.false(stream.readable);
 });
 
-test('Cannot add stream after initially setting to no input', async t => {
+test('Can add stream after initially setting to no input but it is not used', async t => {
 	const stream = mergeStreams([]);
-	t.throws(() => {
-		stream.add(Readable.from('.'));
-	}, {message: /has already ended/});
-	await stream.toArray();
+	const pendingStream = new PassThrough();
+	stream.add(pendingStream);
+	t.deepEqual(await stream.toArray(), []);
+
+	t.true(stream.readableEnded);
+	t.is(stream.errored, null);
+	t.true(stream.destroyed);
+
+	t.false(pendingStream.readableEnded);
+	t.is(pendingStream.errored, null);
+	t.false(pendingStream.destroyed);
+	pendingStream.end();
 });
 
 test('Validates argument is an array', t => {
@@ -445,14 +453,21 @@ test('Can add stream after some streams but not all streams have ended', async t
 	t.is(await text(stream), '...');
 });
 
-test('Cannot add stream after all streams have ended', async t => {
+test('Can add stream after all streams have ended but it is not used', async t => {
 	const stream = mergeStreams([Readable.from('.')]);
 	t.is(await text(stream), '.');
-	const inputStream = Readable.from('.');
-	t.throws(() => {
-		stream.add(inputStream);
-	}, {message: /has already ended/});
-	await stream.toArray();
+	const pendingStream = new PassThrough();
+	stream.add(pendingStream);
+	t.deepEqual(await stream.toArray(), []);
+
+	t.true(stream.readableEnded);
+	t.is(stream.errored, null);
+	t.true(stream.destroyed);
+
+	t.false(pendingStream.readableEnded);
+	t.is(pendingStream.errored, null);
+	t.false(pendingStream.destroyed);
+	pendingStream.end();
 });
 
 test('Adding same stream twice is a noop', async t => {
