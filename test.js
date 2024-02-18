@@ -10,6 +10,8 @@ import mergeStreams from './index.js';
 
 const getInfiniteStream = () => new Readable({read() {}});
 
+const prematureClose = {code: 'ERR_STREAM_PREMATURE_CLOSE'};
+
 test('Works with Readable.from()', async t => {
 	const stream = mergeStreams([
 		Readable.from(['a', 'b']),
@@ -41,7 +43,7 @@ test('Handles large values', async t => {
 	t.is(await text(stream), largeValue.repeat(largeRepeat));
 });
 
-test('Propagate stream errors', async t => {
+test('Propagate stream destroy with error', async t => {
 	const inputStream = getInfiniteStream();
 	const stream = mergeStreams([inputStream]);
 	const error = new Error('test');
@@ -55,7 +57,21 @@ test('Propagate stream errors', async t => {
 	t.true(stream.destroyed);
 });
 
-test('Propagate stream aborts', async t => {
+test('Propagate stream error event', async t => {
+	const inputStream = getInfiniteStream();
+	const stream = mergeStreams([inputStream]);
+	const error = new Error('test');
+	inputStream.emit('error', error);
+	const [destinationError] = await once(stream, 'error');
+	t.is(destinationError, error);
+	t.false(stream.readableEnded);
+	t.is(stream.errored, error);
+	t.true(stream.readableAborted);
+	t.true(stream.closed);
+	t.true(stream.destroyed);
+});
+
+test('Propagate stream abort of all streams', async t => {
 	const inputStream = getInfiniteStream();
 	const stream = mergeStreams([inputStream]);
 	inputStream.destroy();
@@ -63,6 +79,18 @@ test('Propagate stream aborts', async t => {
 	t.false(stream.readableEnded);
 	t.is(stream.errored, null);
 	t.true(stream.readableAborted);
+	t.true(stream.closed);
+	t.true(stream.destroyed);
+});
+
+test('Propagate stream abort of some streams', async t => {
+	const inputStream = getInfiniteStream();
+	const stream = mergeStreams([inputStream, Readable.from('.')]);
+	inputStream.destroy();
+	t.is(await text(stream), '.');
+	t.true(stream.readableEnded);
+	t.is(stream.errored, null);
+	t.false(stream.readableAborted);
 	t.true(stream.closed);
 	t.true(stream.destroyed);
 });
@@ -134,7 +162,7 @@ test('Can end the merge stream before the input streams', async t => {
 test('Can abort the merge stream before the input streams', async t => {
 	const stream = mergeStreams([Readable.from('.')]);
 	stream.destroy();
-	await t.throwsAsync(stream.toArray(), {code: 'ERR_STREAM_PREMATURE_CLOSE'});
+	await t.throwsAsync(stream.toArray(), prematureClose);
 });
 
 test('Can destroy the merge stream before the input streams', async t => {
@@ -142,6 +170,13 @@ test('Can destroy the merge stream before the input streams', async t => {
 	const error = new Error('test');
 	stream.destroy(error);
 	t.is(await t.throwsAsync(stream.toArray()), error);
+});
+
+test('Can emit an "error" event on the merge stream before the input streams', async t => {
+	const stream = mergeStreams([Readable.from('.')]);
+	const error = new Error('test');
+	stream.emit('error', error);
+	t.deepEqual(await stream.toArray(), []);
 });
 
 test('Does not hang when .unpipe() is called', async t => {
@@ -182,7 +217,7 @@ test('Cleans up input streams listeners on any input streams abort', async t => 
 	const inputStream = Readable.from('.');
 	const stream = mergeStreams([inputStream, Readable.from('.')]);
 	inputStream.destroy();
-	await t.throwsAsync(stream.toArray(), {code: 'ERR_STREAM_PREMATURE_CLOSE'});
+	t.is(await text(stream), '.');
 	testListenersCleanup(t, inputStream, stream);
 });
 
@@ -208,7 +243,7 @@ test('Cleans up input streams listeners on merged stream abort', async t => {
 	const inputStream = getInfiniteStream();
 	const stream = mergeStreams([inputStream]);
 	stream.destroy();
-	await t.throwsAsync(stream.toArray(), {code: 'ERR_STREAM_PREMATURE_CLOSE'});
+	await t.throwsAsync(stream.toArray(), prematureClose);
 	testListenersCleanup(t, inputStream, stream);
 });
 
@@ -232,7 +267,7 @@ test('The input streams might have already aborted', async t => {
 	const inputStream = Readable.from('.');
 	inputStream.destroy();
 	const stream = mergeStreams([inputStream]);
-	await t.throwsAsync(stream.toArray(), {code: 'ERR_STREAM_PREMATURE_CLOSE'});
+	await t.throwsAsync(stream.toArray(), prematureClose);
 });
 
 test('The input streams might have already errored', async t => {
@@ -256,7 +291,7 @@ test('The added stream might have already aborted', async t => {
 	inputStream.destroy();
 	const stream = mergeStreams([Readable.from('.')]);
 	stream.add(inputStream);
-	await t.throwsAsync(stream.toArray(), {code: 'ERR_STREAM_PREMATURE_CLOSE'});
+	t.is(await text(stream), '.');
 });
 
 test('The added stream might have already errored', async t => {
@@ -454,6 +489,25 @@ test('Can remove stream after other streams have ended', async t => {
 	t.is(await text(stream), '.');
 	t.true(pendingStream.readable);
 	pendingStream.end();
+});
+
+test('Can remove stream after other streams have aborted', async t => {
+	const inputStream = Readable.from('.');
+	const pendingStream = new PassThrough();
+	const stream = mergeStreams([pendingStream, inputStream]);
+	inputStream.destroy();
+	stream.remove(pendingStream);
+	await t.throwsAsync(stream.toArray(), prematureClose);
+});
+
+test('Can remove stream after other streams have errored', async t => {
+	const inputStream = Readable.from('.');
+	const pendingStream = new PassThrough();
+	const stream = mergeStreams([pendingStream, inputStream]);
+	const error = new Error('test');
+	inputStream.destroy(error);
+	stream.remove(pendingStream);
+	t.is(await t.throwsAsync(stream.toArray()), error);
 });
 
 test('Can remove stream until no input', async t => {
