@@ -36,7 +36,9 @@ export class MergedStream extends Readable {
 	/**
 	Unpipe a stream previously added using either `mergeStreams(streams)` or `MergedStream.add(stream)`.
 
+	Returns `false` if the stream was not previously added, or if it was already removed by `MergedStream.remove(stream)`.
+
 	The removed stream is not automatically ended.
 	*/
-	remove(stream: Readable): void;
+	remove(stream: Readable): boolean;
 }

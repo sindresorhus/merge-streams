@@ -53,11 +53,11 @@ class MergedStream extends PassThroughStream {
 	}
 
 	add(stream) {
+		validateStream(stream);
+
 		if (this.#streams.has(stream)) {
 			return;
 		}
-
-		validateStream(stream);
 
 		if (!this.writable) {
 			throw new TypeError('The merged stream has already ended.');
@@ -70,11 +70,14 @@ class MergedStream extends PassThroughStream {
 	}
 
 	remove(stream) {
+		validateStream(stream);
+
 		if (!this.#streams.has(stream)) {
-			throw new TypeError('Stream cannot be removed because it was not piped.');
+			return false;
 		}
 
 		stream.unpipe(this);
+		return true;
 	}
 }
 
