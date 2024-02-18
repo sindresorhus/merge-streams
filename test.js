@@ -538,14 +538,18 @@ test('Can remove then add again a stream', async t => {
 	t.is(await streamPromise, '...');
 });
 
-test('Cannot remove same stream twice', async t => {
+test('remove() returns false when passing the same stream twice', async t => {
 	const inputStream = Readable.from('.');
 	const stream = mergeStreams([inputStream]);
-	stream.remove(inputStream);
+	t.true(stream.remove(inputStream));
 	await scheduler.yield();
-	t.throws(() => {
-		stream.remove(inputStream);
-	}, {message: /cannot be removed/});
+	t.false(stream.remove(inputStream));
+	await stream.toArray();
+});
+
+test('remove() returns false when passing a stream not piped yet', async t => {
+	const stream = mergeStreams([Readable.from('.')]);
+	t.false(stream.remove(Readable.from('.')));
 	await stream.toArray();
 });
 
@@ -553,14 +557,13 @@ const testInvalidRemove = async (t, removeArgument) => {
 	const stream = mergeStreams([Readable.from('.')]);
 	t.throws(() => {
 		stream.remove(removeArgument);
-	}, {message: /cannot be removed/});
+	}, {message: /Expected a readable stream/});
 	await stream.toArray();
 };
 
-test('Cannot remove stream if not piped', testInvalidRemove, Readable.from('.'));
-test('Cannot pass a non-stream to remove()', testInvalidRemove, '.');
-test('Cannot pass undefined to remove()', testInvalidRemove, undefined);
-test('Cannot pass null to remove()', testInvalidRemove, null);
+test('remove() throws when passing a non-stream', testInvalidRemove, '.');
+test('remove() throws when passing undefined', testInvalidRemove, undefined);
+test('remove() throws when passing null', testInvalidRemove, null);
 
 test('PassThrough streams methods are not overridden', t => {
 	t.is(PassThrough.prototype.add, undefined);
