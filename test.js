@@ -112,6 +112,7 @@ test('Can add stream after initially setting to no input but it is not used', as
 	const pendingStream = new PassThrough();
 	stream.add(pendingStream);
 	t.deepEqual(await stream.toArray(), []);
+	await scheduler.yield();
 
 	t.true(stream.readableEnded);
 	t.is(stream.errored, null);
@@ -119,8 +120,7 @@ test('Can add stream after initially setting to no input but it is not used', as
 
 	t.false(pendingStream.readableEnded);
 	t.is(pendingStream.errored, null);
-	t.false(pendingStream.destroyed);
-	pendingStream.end();
+	t.true(pendingStream.destroyed);
 });
 
 test('Validates argument is an array', t => {
@@ -162,19 +162,49 @@ test('"add()" cannot change objectMode', async t => {
 });
 
 test('Can end the merge stream before the input streams', async t => {
-	const stream = mergeStreams([Readable.from('.')]);
+	const pendingStream = new PassThrough();
+	const stream = mergeStreams([pendingStream]);
+	stream.end();
+	t.deepEqual(await stream.toArray(), []);
+	await scheduler.yield();
+	t.false(pendingStream.readable);
+});
+
+test('Can abort the merge stream before the input streams', async t => {
+	const pendingStream = new PassThrough();
+	const stream = mergeStreams([pendingStream]);
+	stream.destroy();
+	await t.throwsAsync(stream.toArray(), prematureClose);
+	t.false(pendingStream.readableEnded);
+	t.is(pendingStream.errored, null);
+	t.true(pendingStream.destroyed);
+});
+
+test('Can destroy the merge stream before the input streams', async t => {
+	const pendingStream = new PassThrough();
+	const stream = mergeStreams([pendingStream]);
+	const error = new Error('test');
+	stream.destroy(error);
+	t.is(await t.throwsAsync(stream.toArray()), error);
+	t.false(pendingStream.readableEnded);
+	t.is(pendingStream.errored, error);
+	t.true(pendingStream.destroyed);
+});
+
+test('Can end the merge stream with no input streams', async t => {
+	const stream = mergeStreams([]);
 	stream.end();
 	t.deepEqual(await stream.toArray(), []);
 });
 
-test('Can abort the merge stream before the input streams', async t => {
-	const stream = mergeStreams([Readable.from('.')]);
+test('Can abort the merge stream with no input streams', async t => {
+	const stream = mergeStreams([]);
 	stream.destroy();
-	await t.throwsAsync(stream.toArray(), prematureClose);
+	t.deepEqual(await stream.toArray(), []);
 });
 
-test('Can destroy the merge stream before the input streams', async t => {
-	const stream = mergeStreams([Readable.from('.')]);
+test('Can destroy the merge stream with no input streams', async t => {
+	const stream = mergeStreams([]);
 	const error = new Error('test');
 	stream.destroy(error);
 	t.is(await t.throwsAsync(stream.toArray()), error);
@@ -466,8 +496,7 @@ test('Can add stream after all streams have ended but it is not used', async t =
 
 	t.false(pendingStream.readableEnded);
 	t.is(pendingStream.errored, null);
-	t.false(pendingStream.destroyed);
-	pendingStream.end();
+	t.true(pendingStream.destroyed);
 });
 
 test('Adding same stream twice is a noop', async t => {

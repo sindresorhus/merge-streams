@@ -24,7 +24,7 @@ export default function mergeStreams(streams) {
 	}
 
 	if (streams.length === 0) {
-		passThroughStream.end();
+		endStream(passThroughStream);
 	}
 
 	return passThroughStream;
@@ -48,11 +48,6 @@ class MergedStream extends PassThroughStream {
 	#aborted = new Set([]);
 	#onFinished;
 
-	constructor(...args) {
-		super(...args);
-		this.#onFinished = onMergedStreamFinished(this, this.#streams);
-	}
-
 	add(stream) {
 		validateStream(stream);
 
@@ -61,14 +56,17 @@ class MergedStream extends PassThroughStream {
 		}
 
 		this.#streams.add(stream);
+
+		this.#onFinished ??= onMergedStreamFinished(this, this.#streams);
 		endWhenStreamsDone({
 			passThroughStream: this,
-			stream, streams: this.#streams,
+			stream,
+			streams: this.#streams,
 			ended: this.#ended,
 			aborted: this.#aborted,
 			onFinished: this.#onFinished,
 		});
-		updateMaxListeners(this, PASSTHROUGH_LISTENERS_PER_STREAM);
+
 		stream.pipe(this, {end: false});
 	}
 
@@ -100,9 +98,7 @@ const onMergedStreamFinished = async (passThroughStream, streams) => {
 };
 
 const onMergedStreamEnd = async (passThroughStream, {signal}) => {
-	try {
-		await finished(passThroughStream, {signal, cleanup: true});
-	} catch {}
+	await finished(passThroughStream, {signal, cleanup: true});
 };
 
 const onInputStreamsUnpipe = async (passThroughStream, streams, {signal}) => {
@@ -120,29 +116,44 @@ const validateStream = stream => {
 };
 
 const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, aborted, onFinished}) => {
+	updateMaxListeners(passThroughStream, PASSTHROUGH_LISTENERS_PER_STREAM);
 	const controller = new AbortController();
 
 	try {
 		await Promise.race([
-			onFinished,
+			afterMergedStreamFinished(onFinished, stream),
 			onInputStreamEnd({passThroughStream, stream, streams, ended, aborted, controller}),
-			onInputStreamUnpipe({passThroughStream, stream, streams, ended, aborted, controller}),
+			onInputStreamUnpipe({stream, streams, ended, aborted, controller}),
 		]);
 	} finally {
 		controller.abort();
+		updateMaxListeners(passThroughStream, -PASSTHROUGH_LISTENERS_PER_STREAM);
 	}
 
-	if (streams.size === ended.size + aborted.size && passThroughStream.writable) {
+	if (streams.size === ended.size + aborted.size) {
 		if (ended.size === 0 && aborted.size > 0) {
-			passThroughStream.destroy();
+			abortStream(passThroughStream);
 		} else {
-			passThroughStream.end();
+			endStream(passThroughStream);
 		}
 	}
 };
 
 // This is the error thrown by `finished()` on `stream.destroy()`
 const isAbortError = error => error?.code === 'ERR_STREAM_PREMATURE_CLOSE';
+
+const afterMergedStreamFinished = async (onFinished, stream) => {
+	try {
+		await onFinished;
+		abortStream(stream);
+	} catch (error) {
+		if (isAbortError(error)) {
+			abortStream(stream);
+		} else {
+			errorStream(stream, error);
+		}
+	}
+};
 
 const onInputStreamEnd = async ({passThroughStream, stream, streams, ended, aborted, controller: {signal}}) => {
 	try {
@@ -158,20 +169,42 @@ const onInputStreamEnd = async ({passThroughStream, stream, streams, ended, abor
 		if (isAbortError(error)) {
 			aborted.add(stream);
 		} else {
-			passThroughStream.destroy(error);
+			errorStream(passThroughStream, error);
 		}
 	}
 };
 
-const onInputStreamUnpipe = async ({passThroughStream, stream, streams, ended, aborted, controller: {signal}}) => {
+const onInputStreamUnpipe = async ({stream, streams, ended, aborted, controller: {signal}}) => {
 	await once(stream, unpipeEvent, {signal});
 	streams.delete(stream);
 	ended.delete(stream);
 	aborted.delete(stream);
-	updateMaxListeners(passThroughStream, -PASSTHROUGH_LISTENERS_PER_STREAM);
 };
 
 const unpipeEvent = Symbol('unpipe');
+
+const endStream = stream => {
+	if (stream.writable) {
+		stream.end();
+	}
+};
+
+const abortStream = stream => {
+	if (stream.readable || stream.writable) {
+		stream.destroy();
+	}
+};
+
+// `stream.destroy(error)` crashes the process with `uncaughtException` if no `error` event listener exists on `stream`.
+// We take care of error handling on user behalf, so we do not want this to happen.
+const errorStream = (stream, error) => {
+	if (!stream.destroyed) {
+		stream.once('error', noop);
+		stream.destroy(error);
+	}
+};
+
+const noop = () => {};
 
 const updateMaxListeners = (passThroughStream, increment) => {
 	passThroughStream.setMaxListeners(passThroughStream.getMaxListeners() + increment);
