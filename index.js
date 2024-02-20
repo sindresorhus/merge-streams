@@ -176,6 +176,11 @@ const onInputStreamEnd = async ({passThroughStream, stream, streams, ended, abor
 
 const onInputStreamUnpipe = async ({stream, streams, ended, aborted, controller: {signal}}) => {
 	await once(stream, unpipeEvent, {signal});
+
+	if (!stream.readable) {
+		return once(signal, 'abort', {signal});
+	}
+
 	streams.delete(stream);
 	ended.delete(stream);
 	aborted.delete(stream);
