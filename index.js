@@ -44,6 +44,7 @@ class MergedStream extends PassThroughStream {
 	#aborted = new Set([]);
 	#onFinished;
 	#unpipeEvent = Symbol('unpipe');
+	#streamPromises = new WeakMap();
 
 	add(stream) {
 		validateStream(stream);
@@ -55,7 +56,7 @@ class MergedStream extends PassThroughStream {
 		this.#streams.add(stream);
 
 		this.#onFinished ??= onMergedStreamFinished(this, this.#streams, this.#unpipeEvent);
-		endWhenStreamsDone({
+		const streamPromise = endWhenStreamsDone({
 			passThroughStream: this,
 			stream,
 			streams: this.#streams,
@@ -64,18 +65,27 @@ class MergedStream extends PassThroughStream {
 			onFinished: this.#onFinished,
 			unpipeEvent: this.#unpipeEvent,
 		});
+		this.#streamPromises.set(stream, streamPromise);
 
 		stream.pipe(this, {end: false});
 	}
 
-	remove(stream) {
+	async remove(stream) {
 		validateStream(stream);
 
 		if (!this.#streams.has(stream)) {
 			return false;
 		}
 
+		const streamPromise = this.#streamPromises.get(stream);
+		if (streamPromise === undefined) {
+			return false;
+		}
+
+		this.#streamPromises.delete(stream);
+
 		stream.unpipe(this);
+		await streamPromise;
 		return true;
 	}
 }

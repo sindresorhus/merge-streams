@@ -44,7 +44,7 @@ Pipe a new readable stream.
 
 Throws if `MergedStream` has already ended.
 
-##### `MergedStream.remove(stream: stream.Readable): boolean`
+##### `MergedStream.remove(stream: stream.Readable): Promise<boolean>`
 
 Unpipe a stream previously added using either [`mergeStreams(streams)`](#mergestreamsstreams-streamreadable-mergedstream) or [`MergedStream.add(stream)`](#mergedstreamaddstream-streamreadable-void).
 
