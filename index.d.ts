@@ -3,7 +3,7 @@ import {type Readable} from 'node:stream';
 /**
 Merges an array of [readable streams](https://nodejs.org/api/stream.html#readable-streams) and returns a new readable stream that emits data from the individual streams as it arrives.
 
-If you provide an empty array, it returns an already-ended stream.
+If you provide an empty array, the stream remains open but can be [manually ended](https://nodejs.org/api/stream.html#writableendchunk-encoding-callback).
 
 @example
 ```

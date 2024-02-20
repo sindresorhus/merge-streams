@@ -23,10 +23,6 @@ export default function mergeStreams(streams) {
 		passThroughStream.add(stream);
 	}
 
-	if (streams.length === 0) {
-		endStream(passThroughStream);
-	}
-
 	return passThroughStream;
 }
 
@@ -137,7 +133,7 @@ const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, ab
 		updateMaxListeners(passThroughStream, -PASSTHROUGH_LISTENERS_PER_STREAM);
 	}
 
-	if (streams.size === ended.size + aborted.size) {
+	if (streams.size > 0 && streams.size === ended.size + aborted.size) {
 		if (ended.size === 0 && aborted.size > 0) {
 			abortStream(passThroughStream);
 		} else {

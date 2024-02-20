@@ -101,26 +101,19 @@ test('Handles no input', async t => {
 	t.false(stream.writableObjectMode);
 	t.is(stream.readableHighWaterMark, getDefaultHighWaterMark(false));
 	t.is(stream.writableHighWaterMark, getDefaultHighWaterMark(false));
-	t.false(stream.writable);
+	t.true(stream.writable);
 	t.true(stream.readable);
+
+	stream.end();
 	t.deepEqual(await stream.toArray(), []);
+	t.false(stream.writable);
 	t.false(stream.readable);
 });
 
-test('Can add stream after initially setting to no input but it is not used', async t => {
+test('Can add stream after initially setting to no input', async t => {
 	const stream = mergeStreams([]);
-	const pendingStream = new PassThrough();
-	stream.add(pendingStream);
-	t.deepEqual(await stream.toArray(), []);
-	await scheduler.yield();
-
-	t.true(stream.readableEnded);
-	t.is(stream.errored, null);
-	t.true(stream.destroyed);
-
-	t.false(pendingStream.readableEnded);
-	t.is(pendingStream.errored, null);
-	t.true(pendingStream.destroyed);
+	stream.add(Readable.from('.'));
+	t.is(await text(stream), '.');
 });
 
 test('Validates argument is an array', t => {
@@ -200,7 +193,7 @@ test('Can end the merge stream with no input streams', async t => {
 test('Can abort the merge stream with no input streams', async t => {
 	const stream = mergeStreams([]);
 	stream.destroy();
-	t.deepEqual(await stream.toArray(), []);
+	await t.throwsAsync(stream.toArray(), prematureClose);
 });
 
 test('Can destroy the merge stream with no input streams', async t => {
@@ -219,11 +212,46 @@ test('Can emit an "error" event on the merge stream before the input streams', a
 	t.is(await t.throwsAsync(inputStream.toArray()), error);
 });
 
-test('Does not hang when .unpipe() is called', async t => {
+test('Does not end when .unpipe() is called and no stream ended', async t => {
 	const inputStream = Readable.from('.');
 	const stream = mergeStreams([inputStream]);
 	inputStream.unpipe(stream);
+	t.true(stream.readable);
+	t.true(stream.writable);
+
+	stream.end();
 	t.is(await text(stream), '');
+});
+
+test('Ends when .unpipe() is called and some stream ended', async t => {
+	const inputStream = Readable.from('.');
+	const pendingStream = new PassThrough();
+	const stream = mergeStreams([inputStream, pendingStream]);
+	t.is(await text(inputStream), '.');
+
+	pendingStream.unpipe(stream);
+	t.is(await text(stream), '.');
+});
+
+test('Aborts when .unpipe() is called and some stream was aborted', async t => {
+	const inputStream = Readable.from('.');
+	const pendingStream = new PassThrough();
+	const stream = mergeStreams([inputStream, pendingStream]);
+	inputStream.destroy();
+
+	pendingStream.unpipe(stream);
+	await t.throwsAsync(stream.toArray(), prematureClose);
+});
+
+test('Errors when .unpipe() is called and some stream errored', async t => {
+	const inputStream = Readable.from('.');
+	const pendingStream = new PassThrough();
+	const stream = mergeStreams([inputStream, pendingStream]);
+	const error = new Error('test');
+	inputStream.destroy(error);
+
+	pendingStream.unpipe(stream);
+	t.is(await t.throwsAsync(stream.toArray()), error);
 });
 
 test('Does not abort when .unpipe() is called on a different stream', async t => {
@@ -563,6 +591,10 @@ test('Can remove stream until no input', async t => {
 	const inputStream = Readable.from('.');
 	const stream = mergeStreams([inputStream]);
 	stream.remove(inputStream);
+	t.true(stream.readable);
+	t.true(stream.writable);
+
+	stream.end();
 	t.is(await text(stream), '');
 });
 
@@ -581,7 +613,8 @@ test('Can remove then add again a stream', async t => {
 
 	stream.add(secondPendingStream);
 	pendingStream.end('.');
-	await scheduler.yield();
+	const secondWrite = await once(stream, 'data');
+	t.is(secondWrite.toString(), '.');
 
 	secondPendingStream.end('.');
 	t.is(await streamPromise, '...');
@@ -641,6 +674,8 @@ test('remove() returns false when passing the same stream twice', async t => {
 	t.true(stream.remove(inputStream));
 	await scheduler.yield();
 	t.false(stream.remove(inputStream));
+
+	stream.end();
 	await stream.toArray();
 });
 
