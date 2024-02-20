@@ -624,3 +624,23 @@ test('PassThrough streams methods are not enumerable', async t => {
 	await stream.toArray();
 	passThrough.end();
 });
+
+test('Can use same source stream for multiple merge streams', async t => {
+	const inputStream = Readable.from('.');
+	const stream = mergeStreams([inputStream]);
+	const streamTwo = mergeStreams([inputStream]);
+	t.is(await text(stream), '.');
+	t.is(await text(streamTwo), '.');
+});
+
+test('Can use same source stream for multiple merge streams, with remove()', async t => {
+	const inputStream = new PassThrough();
+	const secondInputStream = Readable.from('.');
+	const stream = mergeStreams([inputStream, secondInputStream]);
+	const secondStream = mergeStreams([inputStream, secondInputStream]);
+	stream.remove(inputStream);
+	await scheduler.yield();
+	t.is(await text(stream), '.');
+	inputStream.end('.');
+	t.is(await text(secondStream), '..');
+});

@@ -47,6 +47,7 @@ class MergedStream extends PassThroughStream {
 	#ended = new Set([]);
 	#aborted = new Set([]);
 	#onFinished;
+	#unpipeEvent = Symbol('unpipe');
 
 	add(stream) {
 		validateStream(stream);
@@ -57,7 +58,7 @@ class MergedStream extends PassThroughStream {
 
 		this.#streams.add(stream);
 
-		this.#onFinished ??= onMergedStreamFinished(this, this.#streams);
+		this.#onFinished ??= onMergedStreamFinished(this, this.#streams, this.#unpipeEvent);
 		endWhenStreamsDone({
 			passThroughStream: this,
 			stream,
@@ -65,6 +66,7 @@ class MergedStream extends PassThroughStream {
 			ended: this.#ended,
 			aborted: this.#aborted,
 			onFinished: this.#onFinished,
+			unpipeEvent: this.#unpipeEvent,
 		});
 
 		stream.pipe(this, {end: false});
@@ -82,14 +84,14 @@ class MergedStream extends PassThroughStream {
 	}
 }
 
-const onMergedStreamFinished = async (passThroughStream, streams) => {
+const onMergedStreamFinished = async (passThroughStream, streams, unpipeEvent) => {
 	updateMaxListeners(passThroughStream, PASSTHROUGH_LISTENERS_COUNT);
 	const controller = new AbortController();
 
 	try {
 		await Promise.race([
 			onMergedStreamEnd(passThroughStream, controller),
-			onInputStreamsUnpipe(passThroughStream, streams, controller),
+			onInputStreamsUnpipe(passThroughStream, streams, unpipeEvent, controller),
 		]);
 	} finally {
 		controller.abort();
@@ -101,7 +103,7 @@ const onMergedStreamEnd = async (passThroughStream, {signal}) => {
 	await finished(passThroughStream, {signal, cleanup: true});
 };
 
-const onInputStreamsUnpipe = async (passThroughStream, streams, {signal}) => {
+const onInputStreamsUnpipe = async (passThroughStream, streams, unpipeEvent, {signal}) => {
 	for await (const [unpipedStream] of on(passThroughStream, 'unpipe', {signal})) {
 		if (streams.has(unpipedStream)) {
 			unpipedStream.emit(unpipeEvent);
@@ -115,7 +117,7 @@ const validateStream = stream => {
 	}
 };
 
-const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, aborted, onFinished}) => {
+const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, aborted, onFinished, unpipeEvent}) => {
 	updateMaxListeners(passThroughStream, PASSTHROUGH_LISTENERS_PER_STREAM);
 	const controller = new AbortController();
 
@@ -123,7 +125,7 @@ const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, ab
 		await Promise.race([
 			afterMergedStreamFinished(onFinished, stream),
 			onInputStreamEnd({passThroughStream, stream, streams, ended, aborted, controller}),
-			onInputStreamUnpipe({stream, streams, ended, aborted, controller}),
+			onInputStreamUnpipe({stream, streams, ended, aborted, unpipeEvent, controller}),
 		]);
 	} finally {
 		controller.abort();
@@ -174,14 +176,12 @@ const onInputStreamEnd = async ({passThroughStream, stream, streams, ended, abor
 	}
 };
 
-const onInputStreamUnpipe = async ({stream, streams, ended, aborted, controller: {signal}}) => {
+const onInputStreamUnpipe = async ({stream, streams, ended, aborted, unpipeEvent, controller: {signal}}) => {
 	await once(stream, unpipeEvent, {signal});
 	streams.delete(stream);
 	ended.delete(stream);
 	aborted.delete(stream);
 };
-
-const unpipeEvent = Symbol('unpipe');
 
 const endStream = stream => {
 	if (stream.writable) {
