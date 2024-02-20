@@ -18,7 +18,7 @@ expectError(mergedStream.add());
 expectError(mergedStream.add([]));
 expectError(mergedStream.add(''));
 
-expectType<boolean>(mergedStream.remove(readableStream));
-expectError(mergedStream.remove());
-expectError(mergedStream.remove([]));
-expectError(mergedStream.remove(''));
+expectType<Promise<boolean>>(mergedStream.remove(readableStream));
+expectError(await mergedStream.remove());
+expectError(await mergedStream.remove([]));
+expectError(await mergedStream.remove(''));

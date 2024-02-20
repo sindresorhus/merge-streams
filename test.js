@@ -159,8 +159,7 @@ test('Can end the merge stream before the input streams', async t => {
 	const stream = mergeStreams([pendingStream]);
 	stream.end();
 	t.deepEqual(await stream.toArray(), []);
-	await scheduler.yield();
-	t.false(pendingStream.readable);
+	await t.throwsAsync(pendingStream.toArray(), prematureClose);
 });
 
 test('Can abort the merge stream before the input streams', async t => {
@@ -303,7 +302,6 @@ test('Cleans up input streams listeners on merged stream end', async t => {
 	const stream = mergeStreams([inputStream]);
 	stream.end();
 	await stream.toArray();
-	await scheduler.yield();
 	testListenersCleanup(t, inputStream, stream);
 });
 
@@ -467,8 +465,7 @@ test('Updates maxListeners of merged streams with add() and remove()', async t =
 	stream.add(inputStream);
 	assertMaxListeners(t, stream, defaultMaxListeners);
 
-	stream.remove(inputStream);
-	await scheduler.yield();
+	await stream.remove(inputStream);
 	assertMaxListeners(t, stream, defaultMaxListeners);
 
 	await stream.toArray();
@@ -485,7 +482,6 @@ const testInfiniteMaxListeners = async (t, maxListeners) => {
 	t.is(stream.getMaxListeners(), maxListeners);
 
 	await stream.toArray();
-	await scheduler.yield();
 	t.is(stream.getMaxListeners(), maxListeners);
 };
 
@@ -542,7 +538,7 @@ test('Adding same stream twice is a noop', async t => {
 test('Can remove stream before it ends', async t => {
 	const inputStream = Readable.from('.');
 	const stream = mergeStreams([Readable.from('.'), inputStream]);
-	stream.remove(inputStream);
+	await stream.remove(inputStream);
 	t.true(inputStream.readable);
 	t.is(await text(stream), '.');
 });
@@ -552,7 +548,7 @@ test('Can remove stream after it ends', async t => {
 	const pendingStream = new PassThrough();
 	const stream = mergeStreams([pendingStream, inputStream]);
 	t.is(await text(inputStream), '.');
-	stream.remove(inputStream);
+	await stream.remove(inputStream);
 	pendingStream.end(' ');
 	t.is(await text(stream), '. ');
 });
@@ -562,7 +558,7 @@ test('Can remove stream after other streams have ended', async t => {
 	const pendingStream = new PassThrough();
 	const stream = mergeStreams([pendingStream, inputStream]);
 	t.is(await text(inputStream), '.');
-	stream.remove(pendingStream);
+	await stream.remove(pendingStream);
 	t.is(await text(stream), '.');
 	t.true(pendingStream.readable);
 	pendingStream.end();
@@ -573,7 +569,7 @@ test('Can remove stream after other streams have aborted', async t => {
 	const pendingStream = new PassThrough();
 	const stream = mergeStreams([pendingStream, inputStream]);
 	inputStream.destroy();
-	stream.remove(pendingStream);
+	await stream.remove(pendingStream);
 	await t.throwsAsync(stream.toArray(), prematureClose);
 });
 
@@ -583,14 +579,14 @@ test('Can remove stream after other streams have errored', async t => {
 	const stream = mergeStreams([pendingStream, inputStream]);
 	const error = new Error('test');
 	inputStream.destroy(error);
-	stream.remove(pendingStream);
+	await stream.remove(pendingStream);
 	t.is(await t.throwsAsync(stream.toArray()), error);
 });
 
 test('Can remove stream until no input', async t => {
 	const inputStream = Readable.from('.');
 	const stream = mergeStreams([inputStream]);
-	stream.remove(inputStream);
+	await stream.remove(inputStream);
 	t.true(stream.readable);
 	t.true(stream.writable);
 
@@ -608,8 +604,7 @@ test('Can remove then add again a stream', async t => {
 	const firstWrite = await once(stream, 'data');
 	t.is(firstWrite.toString(), '.');
 
-	stream.remove(secondPendingStream);
-	await scheduler.yield();
+	await stream.remove(secondPendingStream);
 
 	stream.add(secondPendingStream);
 	pendingStream.end('.');
@@ -624,11 +619,9 @@ test('Removed streams are not impacted by merge stream end', async t => {
 	const inputStream = Readable.from('.');
 	const pendingStream = new PassThrough();
 	const stream = mergeStreams([pendingStream, inputStream]);
-	stream.remove(pendingStream);
-	await scheduler.yield();
+	await stream.remove(pendingStream);
 
 	t.is(await text(stream), '.');
-	await scheduler.yield();
 
 	t.true(pendingStream.readable);
 	pendingStream.end('.');
@@ -639,12 +632,10 @@ test('Removed streams are not impacted by merge stream abort', async t => {
 	const inputStream = Readable.from('.');
 	const pendingStream = new PassThrough();
 	const stream = mergeStreams([pendingStream, inputStream]);
-	stream.remove(pendingStream);
-	await scheduler.yield();
+	await stream.remove(pendingStream);
 
 	stream.destroy();
 	await t.throwsAsync(stream.toArray(), prematureClose);
-	await scheduler.yield();
 
 	t.true(pendingStream.readable);
 	pendingStream.end('.');
@@ -655,13 +646,11 @@ test('Removed streams are not impacted by merge stream error', async t => {
 	const inputStream = Readable.from('.');
 	const pendingStream = new PassThrough();
 	const stream = mergeStreams([pendingStream, inputStream]);
-	stream.remove(pendingStream);
-	await scheduler.yield();
+	await stream.remove(pendingStream);
 
 	const error = new Error('test');
 	stream.destroy(error);
 	t.is(await t.throwsAsync(stream.toArray()), error);
-	await scheduler.yield();
 
 	t.true(pendingStream.readable);
 	pendingStream.end('.');
@@ -671,9 +660,8 @@ test('Removed streams are not impacted by merge stream error', async t => {
 test('remove() returns false when passing the same stream twice', async t => {
 	const inputStream = Readable.from('.');
 	const stream = mergeStreams([inputStream]);
-	t.true(stream.remove(inputStream));
-	await scheduler.yield();
-	t.false(stream.remove(inputStream));
+	t.true(await stream.remove(inputStream));
+	t.false(await stream.remove(inputStream));
 
 	stream.end();
 	await stream.toArray();
@@ -681,15 +669,16 @@ test('remove() returns false when passing the same stream twice', async t => {
 
 test('remove() returns false when passing a stream not piped yet', async t => {
 	const stream = mergeStreams([Readable.from('.')]);
-	t.false(stream.remove(Readable.from('.')));
+	t.false(await stream.remove(Readable.from('.')));
 	await stream.toArray();
 });
 
 const testInvalidRemove = async (t, removeArgument) => {
 	const stream = mergeStreams([Readable.from('.')]);
-	t.throws(() => {
-		stream.remove(removeArgument);
-	}, {message: /Expected a readable stream/});
+	await t.throwsAsync(
+		stream.remove(removeArgument),
+		{message: /Expected a readable stream/},
+	);
 	await stream.toArray();
 };
 
@@ -723,9 +712,59 @@ test('Can use same source stream for multiple merge streams, with remove()', asy
 	const secondInputStream = Readable.from('.');
 	const stream = mergeStreams([inputStream, secondInputStream]);
 	const secondStream = mergeStreams([inputStream, secondInputStream]);
-	stream.remove(inputStream);
-	await scheduler.yield();
+	await stream.remove(inputStream);
 	t.is(await text(stream), '.');
 	inputStream.end('.');
 	t.is(await text(secondStream), '..');
+});
+
+test('Can call add() right after add()', async t => {
+	const inputStream = Readable.from('.');
+	const secondInputStream = Readable.from('.');
+	const stream = mergeStreams([Readable.from('.')]);
+	stream.add(inputStream);
+	stream.add(secondInputStream);
+	t.is(await text(stream), '...');
+});
+
+test('Can call add() right after remove()', async t => {
+	const inputStream = new PassThrough();
+	const secondInputStream = Readable.from('.');
+	const stream = mergeStreams([inputStream, secondInputStream]);
+	await stream.remove(inputStream);
+	stream.add(inputStream);
+	inputStream.end('.');
+	t.is(await text(stream), '..');
+});
+
+test('Can call remove() right after add()', async t => {
+	const inputStream = Readable.from('.');
+	const secondInputStream = Readable.from('.');
+	const stream = mergeStreams([inputStream]);
+	stream.add(secondInputStream);
+	await stream.remove(secondInputStream);
+	t.is(await text(stream), '.');
+	t.is(await text(secondInputStream), '.');
+});
+
+test('Can call remove() right after remove()', async t => {
+	const inputStream = Readable.from('.');
+	const secondInputStream = Readable.from('.');
+	const stream = mergeStreams([inputStream, secondInputStream, Readable.from('.')]);
+	await stream.remove(inputStream);
+	await stream.remove(secondInputStream);
+	t.is(await text(stream), '.');
+	t.is(await text(inputStream), '.');
+	t.is(await text(secondInputStream), '.');
+});
+
+test('Can call remove() at the same time as remove()', async t => {
+	const inputStream = Readable.from('.');
+	const stream = mergeStreams([inputStream, Readable.from('.')]);
+	t.deepEqual(await Promise.all([
+		stream.remove(inputStream),
+		stream.remove(inputStream),
+	]), [true, false]);
+	t.is(await text(stream), '.');
+	t.is(await text(inputStream), '.');
 });

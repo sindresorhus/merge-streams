@@ -40,5 +40,5 @@ export class MergedStream extends Readable {
 
 	The removed stream is not automatically ended.
 	*/
-	remove(stream: Readable): boolean;
+	remove(stream: Readable): Promise<boolean>;
 }
