@@ -211,10 +211,12 @@ test('Can destroy the merge stream with no input streams', async t => {
 });
 
 test('Can emit an "error" event on the merge stream before the input streams', async t => {
-	const stream = mergeStreams([Readable.from('.')]);
+	const inputStream = Readable.from('.');
+	const stream = mergeStreams([inputStream]);
 	const error = new Error('test');
 	stream.emit('error', error);
-	t.deepEqual(await stream.toArray(), []);
+	t.is(await t.throwsAsync(stream.toArray()), error);
+	t.is(await t.throwsAsync(inputStream.toArray()), error);
 });
 
 test('Does not hang when .unpipe() is called', async t => {
