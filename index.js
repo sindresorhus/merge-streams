@@ -128,7 +128,7 @@ const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, ab
 
 	try {
 		await Promise.race([
-			afterMergedStreamFinished(onFinished, stream),
+			afterMergedStreamFinished(onFinished, stream, controller),
 			onInputStreamEnd({passThroughStream, stream, streams, ended, aborted, controller}),
 			onInputStreamUnpipe({stream, streams, ended, aborted, unpipeEvent, controller}),
 		]);
@@ -146,12 +146,16 @@ const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, ab
 	}
 };
 
-const afterMergedStreamFinished = async (onFinished, stream) => {
+const afterMergedStreamFinished = async (onFinished, stream, {signal}) => {
 	try {
 		await onFinished;
-		abortStream(stream);
+		if (!signal.aborted) {
+			abortStream(stream);
+		}
 	} catch (error) {
-		errorOrAbortStream(stream, error);
+		if (!signal.aborted) {
+			errorOrAbortStream(stream, error);
+		}
 	}
 };
 

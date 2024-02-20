@@ -587,6 +587,54 @@ test('Can remove then add again a stream', async t => {
 	t.is(await streamPromise, '...');
 });
 
+test('Removed streams are not impacted by merge stream end', async t => {
+	const inputStream = Readable.from('.');
+	const pendingStream = new PassThrough();
+	const stream = mergeStreams([pendingStream, inputStream]);
+	stream.remove(pendingStream);
+	await scheduler.yield();
+
+	t.is(await text(stream), '.');
+	await scheduler.yield();
+
+	t.true(pendingStream.readable);
+	pendingStream.end('.');
+	t.is(await text(pendingStream), '.');
+});
+
+test('Removed streams are not impacted by merge stream abort', async t => {
+	const inputStream = Readable.from('.');
+	const pendingStream = new PassThrough();
+	const stream = mergeStreams([pendingStream, inputStream]);
+	stream.remove(pendingStream);
+	await scheduler.yield();
+
+	stream.destroy();
+	await t.throwsAsync(stream.toArray(), prematureClose);
+	await scheduler.yield();
+
+	t.true(pendingStream.readable);
+	pendingStream.end('.');
+	t.is(await text(pendingStream), '.');
+});
+
+test('Removed streams are not impacted by merge stream error', async t => {
+	const inputStream = Readable.from('.');
+	const pendingStream = new PassThrough();
+	const stream = mergeStreams([pendingStream, inputStream]);
+	stream.remove(pendingStream);
+	await scheduler.yield();
+
+	const error = new Error('test');
+	stream.destroy(error);
+	t.is(await t.throwsAsync(stream.toArray()), error);
+	await scheduler.yield();
+
+	t.true(pendingStream.readable);
+	pendingStream.end('.');
+	t.is(await text(pendingStream), '.');
+});
+
 test('remove() returns false when passing the same stream twice', async t => {
 	const inputStream = Readable.from('.');
 	const stream = mergeStreams([inputStream]);
