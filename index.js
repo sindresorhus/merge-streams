@@ -98,7 +98,12 @@ const onMergedStreamFinished = async (passThroughStream, streams) => {
 };
 
 const onMergedStreamEnd = async (passThroughStream, {signal}) => {
-	await finished(passThroughStream, {signal, cleanup: true});
+	try {
+		await finished(passThroughStream, {signal, cleanup: true});
+	} catch (error) {
+		errorOrAbortStream(passThroughStream, error);
+		throw error;
+	}
 };
 
 const onInputStreamsUnpipe = async (passThroughStream, streams, {signal}) => {
@@ -139,19 +144,12 @@ const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, ab
 	}
 };
 
-// This is the error thrown by `finished()` on `stream.destroy()`
-const isAbortError = error => error?.code === 'ERR_STREAM_PREMATURE_CLOSE';
-
 const afterMergedStreamFinished = async (onFinished, stream) => {
 	try {
 		await onFinished;
 		abortStream(stream);
 	} catch (error) {
-		if (isAbortError(error)) {
-			abortStream(stream);
-		} else {
-			errorStream(stream, error);
-		}
+		errorOrAbortStream(stream, error);
 	}
 };
 
@@ -188,6 +186,17 @@ const endStream = stream => {
 		stream.end();
 	}
 };
+
+const errorOrAbortStream = (stream, error) => {
+	if (isAbortError(error)) {
+		abortStream(stream);
+	} else {
+		errorStream(stream, error);
+	}
+};
+
+// This is the error thrown by `finished()` on `stream.destroy()`
+const isAbortError = error => error?.code === 'ERR_STREAM_PREMATURE_CLOSE';
 
 const abortStream = stream => {
 	if (stream.readable || stream.writable) {
