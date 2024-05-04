@@ -17,7 +17,7 @@
 	},
 	"sideEffects": false,
 	"engines": {
-		"node": ">=18"
+		"node": ">=18.18"
 	},
 	"scripts": {
 		"test": "xo && c8 ava && tsd"
