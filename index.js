@@ -135,8 +135,22 @@ const endWhenStreamsDone = async ({passThroughStream, stream, streams, ended, ab
 	try {
 		await Promise.race([
 			afterMergedStreamFinished(onFinished, stream, controller),
-			onInputStreamEnd({passThroughStream, stream, streams, ended, aborted, controller}),
-			onInputStreamUnpipe({stream, streams, ended, aborted, unpipeEvent, controller}),
+			onInputStreamEnd({
+				passThroughStream,
+				stream,
+				streams,
+				ended,
+				aborted,
+				controller,
+			}),
+			onInputStreamUnpipe({
+				stream,
+				streams,
+				ended,
+				aborted,
+				unpipeEvent,
+				controller,
+			}),
 		]);
 	} finally {
 		controller.abort();
@@ -167,7 +181,12 @@ const afterMergedStreamFinished = async (onFinished, stream, {signal}) => {
 
 const onInputStreamEnd = async ({passThroughStream, stream, streams, ended, aborted, controller: {signal}}) => {
 	try {
-		await finished(stream, {signal, cleanup: true, readable: true, writable: false});
+		await finished(stream, {
+			signal,
+			cleanup: true,
+			readable: true,
+			writable: false,
+		});
 		if (streams.has(stream)) {
 			ended.add(stream);
 		}
